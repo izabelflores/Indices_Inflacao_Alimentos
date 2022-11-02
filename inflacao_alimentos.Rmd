@@ -1,10 +1,9 @@
 ---
-title: "Regime Fiscal Sustentável: simulação de trajetória de gastos públicos federais"
-subtitle: "Proposta de Emenda Constitucional XXX"
+title: "Inflação de aliemntos no Brasil"
+subtitle: "análise descritiva e econométrica"
 author: 
   - "Izabel Flores^[UnB]"
-  - "Mauro Patrão^[UnB]"
-  - "Rafael de Acypreste^[UnB]"
+  
 date: "`r format(Sys.Date(),'%d/%m/%Y')`"
 output:
   bookdown::html_document2:
@@ -77,7 +76,7 @@ carrega_pacotes()
 ```
 
 
-## Variáveis
+## Baixando variáveis
 
 
 ### IPAD
@@ -93,7 +92,8 @@ IPAD2 <-  get_sidra(api='/t/7060/n1/all/v/63/p/first%2030/c315/7171/d/v63%202')
 
 bd_IPAD <-  bind_rows(IPAD1, IPAD2)%>% 
    select('Mês (Código)', Valor) %>% 
-  rename(Data = 'Mês (Código)') %>% 
+  rename(Data = 'Mês (Código)',
+         IPAD = Valor) %>% 
   arrange(Data)
   
 remove(IPAD1, IPAD2)
@@ -144,7 +144,7 @@ bd_cambio <- GetBCBData::gbcbd_get_series(
 ) %>% 
   select("ref.date", "value") %>%  # selecionando variaveis
   rename(Ano = ref.date, # renomeando variáveis
-         `Taxa de Câmbio` = value)
+         `Taxa de câmbio` = value)
 
 ```
 
@@ -160,8 +160,8 @@ bd_producao_industrial <- GetBCBData::gbcbd_get_series(
   last.date = "2022-06-30"   # periodo final
 ) %>% 
   select("ref.date", "value") %>%  # selecionando variaveis
-  rename(Ano = ref.date, # renomeando variáveis
-         `Taxa de Câmbio` = value)
+  rename(Ano_mes = ref.date, # renomeando variáveis
+         `Produção industrial` = value)
 
 
 ```
@@ -214,6 +214,7 @@ url_bases <- paste0(
   as.list() %>%
   set_names(periodo$ano)
   # baixar arquivos em pasta temporaria
+
 purrr::walk2(url_bases,
              url_bases %>% names(),
              ~ download.file(.x,
@@ -239,23 +240,62 @@ importar_tabelas <- function(path, sheet){
            PRIMARIA_FINANCEIRA,   # Informa se a despesa é primária ou financeira)
            PAGAMENTOS_TOTAIS    # Informa o montante de pagamentos realizados (despesas pagas + restos a pagar pagos)
     ) %>% 
-    group_by(ID_ANO,
-             ID_MES,
-             NO_FUNCAO_PT,
-             NO_PROGRAMA_PT,
-             NO_ACAO,
-             PRIMARIA_FINANCEIRA)%>% 
-    summarise(               # Agrupa os dados mensais por ano
-      PAGAMENTOS_TOTAIS  = sum(PAGAMENTOS_TOTAIS)     # Informa o montante de pagamentos realizados (despesas pagas + restos a pagar pagos)
-    ) %>% 
-    ungroup()
-      
+    filter(NO_FUNCAO_PT == "ASSISTENCIA SOCIAL")
 }
+  
+
   # Importa as tabelas e agrupa os anos numa única tabela
-bd <- purrr::map(path, importar_tabelas) %>%
+bd_assistencia_socail <- purrr::map(path, importar_tabelas) %>%
   purrr::set_names(index$ano) %>% 
   bind_rows()
+
+  # conferindo
+
+bd_assistencia_socail <- bd_assistencia_socail %>% 
+  filter(PRIMARIA_FINANCEIRA == "Primária",
+         str_detect(NO_ACAO, "BPC|TRANSFERENCIA|AUXILIO|DISTRIBUICAO") &
+         !str_detect(NO_ACAO, "OPERACIONALIZACAO|PROCESSAMENTO"))
+
+acao <- bd %>%      # escrever no artigo as acoes que usaremos
+  count(NO_ACAO)
+
+bd_assistencia_socail <- bd_assistencia_socail %>%
+  select(ID_ANO, ID_MES, PAGAMENTOS_TOTAIS) %>% 
+  group_by(ID_ANO, ID_MES) %>% 
+  summarise(
+    PAGAMENTOS_TOTAIS    = sum(PAGAMENTOS_TOTAIS)
+  ) %>% 
+  filter(ID_ANO != 2022 | ID_MES <= 6) %>% 
+  arrange(ID_ANO, ID_MES) %>% 
+  rename("Assistência social" = PAGAMENTOS_TOTAIS)
+
 ```
 
+## Criando bases
+
+```{r}
+
+bd <- bind_cols(bd_IPAD,          # juntando variáveis
+          bd_petroleo,
+          bd_preco_internacional,
+          bd_cambio,
+          bd_producao_industrial,
+          bd_assistencia_socail) %>% 
+  select(Ano_mes,
+         IPAD,
+         Petróleo,
+         "Preço internacional dos alimentos",
+         "Taxa de câmbio",
+         "Produção industrial",
+         "Assistência social") %>% 
+  mutate("Assistência social" = `Assistência social`/1000000) %>% 
+  rename(Data = Ano_mes,
+         "Assistência social (milhões de reais)" = "Assistência social")
+
+
+bd$Data <- ymd(bd$Data) %>%         # dta ano-mes
+  strftime(bd$Data,format="%Y-%m")
+
+```
 
 
