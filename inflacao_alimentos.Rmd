@@ -298,4 +298,229 @@ bd$Data <- ymd(bd$Data) %>%         # dta ano-mes
 
 ```
 
+### Colocando base em primeira diferença e log
+
+```{r}
+
+bd2 <- bd %>% 
+  mutate_if(is.numeric, ~c(F, diff(.))) %>% # primeira diferença
+  filter(Data != "2012-01") %>% 
+  mutate_if(is.numeric, ~log( .x + 1 - min(.))) %>% # log com correcão para numeros negativos
+  filter(Data <= "2021-06") %>% 
+  select(-Data) # retirar coluna de data
+
+bd2 <- bd2 <- 
+
+```
+
+# Modelo VAR
+
+```{r}
+library(vars)
+library(tseries)
+library(ggplot2)
+library(forecast)
+```
+
+## Graficos
+
+```{r}
+
+ts_IPAD <- ts(bd2$IPAD, start = c(2012, 02), frequency = 12)
+ts_petroleo <- ts(bd2$Petróleo, start = c(2012, 02), frequency = 12)
+ts_preco <- ts(bd2$`Preço internacional dos alimentos`, start = c(2012, 02), end = c(2021, 06), frequency = 12)
+ts_cambio <- ts(bd2$`Taxa de câmbio`, start = c(2012, 02), frequency = 12)
+ts_producao <- ts(bd2$`Produção industrial`, start = c(2012, 02), frequency = 12)
+ts_assistencia <- ts(bd2$`Assistência social (milhões de reais)`, start = c(2012, 02), frequency = 12)
+
+autoplot(ts_IPAD) 
+autoplot(ts_petroleo)
+autoplot(ts_preco)
+autoplot(ts_cambio)
+autoplot(ts_producao)
+autoplot(ts_assistencia)
+
+```
+
+# estacionariedade
+
+```{r}
+# Teste ADF
+
+    # reheitar hipotese nula = serie estacionária :)
+
+print(adf.test(ts_IPAD)) # estacionaria
+print(adf.test(ts_preco)) # estacionaria
+print(adf.test(ts_cambio)) # estacionaria
+print(adf.test(ts_petroleo)) # estacionaria
+print(adf.test(ts_producao)) # estacionaria
+print(adf.test(ts_assistencia)) # estacionária
+
+```
+
+# Escolhendo lags
+
+```{r}
+lag <- VARselect(bd2, lag.max = 5)
+lag$selection
+        # AIC e FPE = 2 lags
+        # HQ e SC = 2 lags
+
+```
+
+# Estimando
+
+```{r}
+estim <- VAR(bd2, p = 1, type = "none")
+
+summary(estim)
+
+library(stargazer)
+
+stargazer(estim[["varresult"]], type = "text")
+```
+
+# Teste de estabilidade
+
+```{r}
+
+roots(estim, modulus = TRUE)  # precisa ser menor que 1 pra ser estável :)
+```
+
+# Causalidade de Granger
+
+```{r}
+
+granger1 <- causality(estim, cause = "Petróleo")
+
+granger1$Granger  # petroleo causa
+
+granger2 <- causality(estim, cause = "IPAD")           # IPAD não causa
+
+granger2$Granger
+
+granger3 <- causality(estim, cause = "Preço.internacional.dos.alimentos")  # não causa 
+
+granger3$Granger
+
+granger4 <- causality(estim, cause = "Assistência.social..milhões.de.reais.")  # não causa 
+
+granger4$Granger    # causa granger
+
+
+```
+
+# Impulso resposta
+
+```{r}
+
+
+irf <- irf(estim,
+            repsonse = "IPAD",
+            n.ahead = 20,
+            boot = TRUE,
+            runs = 100,
+            ci = 0.95)
+
+plot(irf2)
+
+```
+
+# Decompoção da variância
+
+```{r}
+# função plotar grafico variancia
+
+plot.varfevd  <-function (x, plot.type = c("multiple", "single"), names = NULL,
+    main = NULL, col = NULL, ylim = NULL, ylab = NULL, xlab = NULL,
+    legend = FALSE, names.arg = NULL, nc, mar = par("mar"), oma = par("oma"),
+    addbars = 1, ...)
+{
+    K <- length(x)
+    ynames <- names(x)
+    plot.type <- match.arg(plot.type)
+    if (is.null(names)) {
+        names <- ynames
+    }
+    else {
+        names <- as.character(names)
+        if (!(all(names %in% ynames))) {
+            warning("\nInvalid variable name(s) supplied, using first variable.\n")
+            names <- ynames[1]
+        }
+    }
+       nv <- length(names)
+#    op <- par(no.readonly = TRUE)
+    ifelse(is.null(main), main <- paste("FEVD for", names), main <- rep(main,
+        nv)[1:nv])
+    ifelse(is.null(col), col <- gray.colors(K), col <- rep(col,
+        K)[1:K])
+    ifelse(is.null(ylab), ylab <- rep("Percentage", nv), ylab <- rep(ylab,
+        nv)[1:nv])
+    ifelse(is.null(xlab), xlab <- rep("Horizon", nv), xlab <- rep(xlab,
+        nv)[1:nv])
+    ifelse(is.null(ylim), ylim <- c(0, 1), ylim <- ylim)
+    ifelse(is.null(legend), legend <- ynames, legend <- legend)
+    if (is.null(names.arg))
+        names.arg <- c(paste(1:nrow(x[[1]])), rep(NA, addbars))
+    plotfevd <- function(x, main, col, ylab, xlab, names.arg,
+        ylim, ...) {
+        addbars <- as.integer(addbars)
+        if (addbars > 0) {
+            hmat <- matrix(0, nrow = K, ncol = addbars)
+            xvalue <- cbind(t(x), hmat)
+            barplot(xvalue, main = main, col = col, ylab = ylab,
+                xlab = xlab, names.arg = names.arg, ylim = ylim,
+                legend.text = legend, ...)
+            abline(h = 0)
+        }
+        else {
+            xvalue <- t(x)
+            barplot(xvalue, main = main, col = col, ylab = ylab,
+                xlab = xlab, names.arg = names.arg, ylim = ylim,
+                ...)
+            abline(h = 0)
+        }
+    }
+    if (plot.type == "single") {
+#        par(mar = mar, oma = oma)
+#        if (nv > 1)
+#            par(ask = TRUE)
+        for (i in 1:nv) {
+            plotfevd(x = x[[names[i]]], main = main[i], col = col,
+                ylab = ylab[i], xlab = xlab[i], names.arg = names.arg,
+                ylim = ylim, ...)
+        }
+    }
+    else if (plot.type == "multiple") {
+        if (missing(nc)) {
+            nc <- ifelse(nv > 4, 2, 1)
+        }
+        nr <- ceiling(nv/nc)
+        par(mfcol = c(nr, nc), mar = mar, oma = oma)
+        for (i in 1:nv) {
+            plotfevd(x = x[[names[i]]], main = main[i], col = col,
+                ylab = ylab[i], xlab = xlab[i], names.arg = names.arg,
+                ylim = ylim, ...)
+        }
+    }
+#    on.exit(par(op))
+}
+```
+
+
+```{r}
+
+vd <- fevd(estim, n.ahead = 10)
+
+plot(vd) + theme(legend.position = "none")
+
+win.graph(width=13,height=8)
+plot(fevd(estim, n.ahead = 10 ))+ theme(legend.position = "none")
+
+
+win.graph(width=15,height=8)
+layout(matrix(1:6, ncol=2))
+plot.varfevd(vd,plot.type = "single", col=1:6)
+```
 
