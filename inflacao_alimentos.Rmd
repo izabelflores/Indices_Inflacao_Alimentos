@@ -10,7 +10,7 @@ output:
     df_print: paged
     fig_caption: true
     number_sections: no
-    theme: united
+    theme: cerulean
     toc: no
     toc_float:
       collapsed: yes
@@ -39,6 +39,9 @@ editor_options:
   chunk_output_type: console
 ---
 
+# {#inic .tabset}
+
+## Pacotes
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
@@ -51,8 +54,6 @@ knitr::opts_chunk$set(
 )
 ```
 
-
-# {#inic .tabset}
 
 
 ```{r, results='hide'}
@@ -73,8 +74,8 @@ pacman::p_load(sidrar,         ## Importar dados IBGE
 options(scipen = 99)           # Ajuste de casas decimais
 }
 carrega_pacotes()
-```
 
+```
 
 ## Baixando variáveis
 
@@ -86,17 +87,38 @@ carrega_pacotes()
 ```{r}
 #%% Importar dados IPCA variacao mensal
 
-IPAD1 <-  get_sidra(api='/t/1419/n1/all/v/63/p/all/c315/7171/d/v63%202')
+IPAD1 <-  get_sidra(api='/t/1419/n1/all/v/63/p/all/c315/7171/d/v63%202') # baixar serie até 2020
 
-IPAD2 <-  get_sidra(api='/t/7060/n1/all/v/63/p/first%2030/c315/7171/d/v63%202')
+IPAD2 <-  get_sidra(api='/t/7060/n1/all/v/63/p/first%2030/c315/7171/d/v63%202') # baixar serie 2021 em diante
 
-bd_IPAD <-  bind_rows(IPAD1, IPAD2)%>% 
-   select('Mês (Código)', Valor) %>% 
-  rename(Data = 'Mês (Código)',
+bd_IPAD <-  bind_rows(IPAD1, IPAD2)%>% # juntar 2 series
+   dplyr::select('Mês (Código)', Valor) %>%  # selecionar variaveis relevantes
+  rename(Data = 'Mês (Código)', # renomear avriaveis
          IPAD = Valor) %>% 
-  arrange(Data)
+  arrange(Data) # ordem crescente de data
   
-remove(IPAD1, IPAD2)
+remove(IPAD1, IPAD2) # apaganto series iniciais
+
+#-----------------------------------------------------------------------------
+
+  # Exibe a tabela no arquivo html
+head(bd_IPAD) %>% 
+  kbl(
+    format      = "html", # Formato desejado
+    align       = "c",    # Informações centralizadas
+    digits      = 2, 
+    booktabs    = TRUE,   # Escala de branco e cinza para visualização
+    format.args = list(big.mark = ".", decimal.mark = ","),
+    caption     = "IPAD", # Título para referência
+    row.names   = FALSE   # Retira o número das linhas
+  ) %>%
+  footnote(
+    general           = "(IBGE).",
+    general_title     = "Fonte: ",  # Original: "Note: "
+    footnote_as_chunk = TRUE,
+    threeparttable    = TRUE
+  ) %>%
+  kable_styling("striped")
 ```
 
 #### Desagregações
@@ -107,13 +129,31 @@ Ctação internacionaldo petróleo, disponibilizado pelo IPEA
 
 ```{r}
 
-bd_petroleo <- read.csv("cotacao_petroleo.csv") %>% 
-  rename(Petróleo = `Commodities...petrÃ³leo...cotaÃ.Ã.o.internacional...US....Fundo.MonetÃ.rio.Internacional..International.Financial.Statistics..FMI.IFS....IFS12_PETROLEUM12`,
+bd_petroleo <- read.csv("cotacao_petroleo.csv") %>%  # ler base petroleo
+  rename(Petróleo = `Commodities...petrÃ³leo...cotaÃ.Ã.o.internacional...US....Fundo.MonetÃ.rio.Internacional..International.Financial.Statistics..FMI.IFS....IFS12_PETROLEUM12`, # renomeando variavel
          Data = ï..Data) %>% 
-  select(Petróleo, Data) %>% 
-  filter(Data >= 2012,
+  dplyr::select(Petróleo, Data) %>%  # selecionando variaveis
+  filter(Data >= 2012,      # filtrando periodo desejado
          Data <= 2022.06)
 
+  # Exibe a tabela no arquivo html
+head(bd_petroleo) %>% 
+  kbl(
+    format      = "html", # Formato desejado
+    align       = "c",    # Informações centralizadas
+    digits      = 2, 
+    booktabs    = TRUE,   # Escala de branco e cinza para visualização
+    format.args = list(big.mark = ".", decimal.mark = ","),
+    caption     = "Preço internacional do petróleo", # Título para referência
+    row.names   = FALSE   # Retira o número das linhas
+  ) %>%
+  footnote(
+    general           = "IPEA.",
+    general_title     = "Fonte: ",  # Original: "Note: "
+    footnote_as_chunk = TRUE,
+    threeparttable    = TRUE
+  ) %>%
+  kable_styling("striped")
 ```
 
 
@@ -122,12 +162,30 @@ bd_petroleo <- read.csv("cotacao_petroleo.csv") %>%
 
 ```{r}
 
-bd_preco_internacional <- read.csv("preco_internacional_FAO.csv")%>%
-  rename(Ano = AÃ.o, 
+bd_preco_internacional <- read.csv("preco_internacional_FAO.csv")%>%  # lendo base
+  rename(Ano = AÃ.o,      # renomeando variaveis
          Mês = Meses,
          "Preço internacional dos alimentos" = Valor) %>% 
-  select(Ano, Mês, "Preço internacional dos alimentos")
+  dplyr::select(Ano, Mês, "Preço internacional dos alimentos") # selecionando variaveis
 
+  # Exibe a tabela no arquivo html
+head(bd_preco_internacional) %>% 
+  kbl(
+    format      = "html", # Formato desejado
+    align       = "c",    # Informações centralizadas
+    digits      = 2, 
+    booktabs    = TRUE,   # Escala de branco e cinza para visualização
+    format.args = list(big.mark = ".", decimal.mark = ","),
+    caption     = "Preço internacional dos alimentos", # Título para referência
+    row.names   = FALSE   # Retira o número das linhas
+  ) %>%
+  footnote(
+    general           = "FAO.",
+    general_title     = "Fonte: ",  # Original: "Note: "
+    footnote_as_chunk = TRUE,
+    threeparttable    = TRUE
+  ) %>%
+  kable_styling("striped")
 ```
 
 
@@ -137,32 +195,69 @@ Utilizaremos a taxa de câmbio livre para o dolar americano no final do período
 
 ```{r}
 
-bd_cambio <- GetBCBData::gbcbd_get_series(
-  id = 3696,
+bd_cambio <- GetBCBData::gbcbd_get_series(  #baixandobase do BCB
+  id = 3696,   #ID da serie 
   first.date = "2012-01-01", # periodo inicial
   last.date = "2022-06-30"   # periodo final
 ) %>% 
-  select("ref.date", "value") %>%  # selecionando variaveis
+  dplyr::select("ref.date", "value") %>%  # selecionando variaveis
   rename(Ano = ref.date, # renomeando variáveis
          `Taxa de câmbio` = value)
+
+  # Exibe a tabela no arquivo html
+head(bd_cambio) %>% 
+  kbl(
+    format      = "html", # Formato desejado
+    align       = "c",    # Informações centralizadas
+    digits      = 2, 
+    booktabs    = TRUE,   # Escala de branco e cinza para visualização
+    format.args = list(big.mark = ".", decimal.mark = ","),
+    caption     = "Taxa de câmbio livre", # Título para referência
+    row.names   = FALSE   # Retira o número das linhas
+  ) %>%
+  footnote(
+    general           = "BCB (SGS).",
+    general_title     = "Fonte: ",  # Original: "Note: "
+    footnote_as_chunk = TRUE,
+    threeparttable    = TRUE
+  ) %>%
+  kable_styling("striped")
 
 ```
 
 
-### Indicador de produção industrial
+### Indicador de de atividade economica (IBC-BR)
 
 Para o nível de atividade econômica, recorremos a série mensal de Utilização da capacidade instalada da indústria de transformação da Fundação Getúlio Vargas (FGV), também disponibilizada pelo BCB.  
 
 ```{r}
-bd_producao_industrial <- GetBCBData::gbcbd_get_series(
-  id = 21859,
+bd_IBC <- GetBCBData::gbcbd_get_series(  # baixando basedo BCB
+  id = 24363,
   first.date = "2012-01-01", # periodo inicial
   last.date = "2022-06-30"   # periodo final
 ) %>% 
-  select("ref.date", "value") %>%  # selecionando variaveis
+  dplyr::select("ref.date", "value") %>%  # selecionando variaveis
   rename(Ano_mes = ref.date, # renomeando variáveis
-         `Produção industrial` = value)
+         `IBC` = value)
 
+  # Exibe a tabela no arquivo html
+head(bd_IBC) %>% 
+  kbl(
+    format      = "html", # Formato desejado
+    align       = "c",    # Informações centralizadas
+    digits      = 2, 
+    booktabs    = TRUE,   # Escala de branco e cinza para visualização
+    format.args = list(big.mark = ".", decimal.mark = ","),
+    caption     = "IBC-BR", # Título para referência
+    row.names   = FALSE   # Retira o número das linhas
+  ) %>%
+  footnote(
+    general           = "BCB (SGS).",
+    general_title     = "Fonte: ",  # Original: "Note: "
+    footnote_as_chunk = TRUE,
+    threeparttable    = TRUE
+  ) %>%
+  kable_styling("striped")
 
 ```
 
@@ -183,7 +278,7 @@ ano_final   <- 2022
 index <- 
   
   tribble(
-    
+   
     ~ano,                ~sufixo, 
     
     2012,               "975adef6-f5d8-4335-897e-f8c4a5a5aeaf",
@@ -232,7 +327,7 @@ importar_tabelas <- function(path, sheet){
   
   readxl::read_excel(path,
                      sheet     = 2) %>%
-    select(ID_ANO,
+    dplyr::select(ID_ANO,
            ID_MES,
            NO_FUNCAO_PT,          # Em que áreas de despesa a ação governamental será realizada?
            NO_PROGRAMA_PT,        # O que se pretende alcançar com a implementação da Política Pública?
@@ -249,18 +344,78 @@ bd_assistencia_socail <- purrr::map(path, importar_tabelas) %>%
   purrr::set_names(index$ano) %>% 
   bind_rows()
 
+# ---------------------
+
+```
+
+A base importada: 
+```{r}
+
+  # Exibe a tabela no arquivo html
+head(bd_assistencia_socail) %>% 
+  kbl(
+    format      = "html", # Formato desejado
+    align       = "c",    # Informações centralizadas
+    digits      = 2, 
+    booktabs    = TRUE,   # Escala de branco e cinza para visualização
+    format.args = list(big.mark = ".", decimal.mark = ","),
+    caption     = "Despesas e transferências totais", # Título para referência
+    row.names   = FALSE   # Retira o número das linhas
+  ) %>%
+  footnote(
+    general           = "Tesouro Nacional.",
+    general_title     = "Fonte: ",  # Original: "Note: "
+    footnote_as_chunk = TRUE,
+    threeparttable    = TRUE
+  ) %>%
+  kable_styling("striped")
+
+#-----------------------
   # conferindo
 
 bd_assistencia_socail <- bd_assistencia_socail %>% 
-  filter(PRIMARIA_FINANCEIRA == "Primária",
-         str_detect(NO_ACAO, "BPC|TRANSFERENCIA|AUXILIO|DISTRIBUICAO") &
-         !str_detect(NO_ACAO, "OPERACIONALIZACAO|PROCESSAMENTO"))
+  filter(PRIMARIA_FINANCEIRA == "Primária",  # filtras só para despesas primarias
+         str_detect(NO_ACAO,       "BPC|TRANSFERENCIA|AUXILIO|DISTRIBUICAO") & # BPC, transferencias (bolsa familia), Auxilios (gas, aliemntaçao, etc) e distribuição de laimentos
+         !str_detect(NO_ACAO, "OPERACIONALIZACAO|PROCESSAMENTO")) # nao contabilizar gastos com operacionalização e processamento, mesmo que dentro das rubricas supracitadas
 
-acao <- bd %>%      # escrever no artigo as acoes que usaremos
+```
+
+As rúbricas das ações contabilizadas para calcular os gastos com assistência social são:
+
+```{r}
+#------------------------
+
+acao <- bd_assistencia_socail %>%      # escrever no artigo as acoes que usaremos
   count(NO_ACAO)
 
+  # Exibe a tabela no arquivo html
+acao$NO_ACAO %>% 
+  kbl(
+    format      = "html", # Formato desejado
+    align       = "c",    # Informações centralizadas
+    digits      = 2, 
+    booktabs    = TRUE,   # Escala de branco e cinza para visualização
+    format.args = list(big.mark = ".", decimal.mark = ","),
+    caption     = "Base com todas as variáveis", # Título para referência
+    row.names   = FALSE   # Retira o número das linhas
+  ) %>%
+  footnote(
+    general           = "Elaboração própria.",
+    general_title     = "Fonte: ",  # Original: "Note: "
+    footnote_as_chunk = TRUE,
+    threeparttable    = TRUE
+  ) %>%
+  kable_styling("striped")
+
+```
+
+
+As transferências totais com assistência social são:
+
+```{r}
+
 bd_assistencia_socail <- bd_assistencia_socail %>%
-  select(ID_ANO, ID_MES, PAGAMENTOS_TOTAIS) %>% 
+  dplyr::select(ID_ANO, ID_MES, PAGAMENTOS_TOTAIS) %>% 
   group_by(ID_ANO, ID_MES) %>% 
   summarise(
     PAGAMENTOS_TOTAIS    = sum(PAGAMENTOS_TOTAIS)
@@ -268,6 +423,26 @@ bd_assistencia_socail <- bd_assistencia_socail %>%
   filter(ID_ANO != 2022 | ID_MES <= 6) %>% 
   arrange(ID_ANO, ID_MES) %>% 
   rename("Assistência social" = PAGAMENTOS_TOTAIS)
+
+
+  # Exibe a tabela no arquivo html
+head(bd_assistencia_socail) %>% 
+  kbl(
+    format      = "html", # Formato desejado
+    align       = "c",    # Informações centralizadas
+    digits      = 2, 
+    booktabs    = TRUE,   # Escala de branco e cinza para visualização
+    format.args = list(big.mark = ".", decimal.mark = ","),
+    caption     = "Despesas e transferências totais", # Título para referência
+    row.names   = FALSE   # Retira o número das linhas
+  ) %>%
+  footnote(
+    general           = "Tesouro Nacional.",
+    general_title     = "Fonte: ",  # Original: "Note: "
+    footnote_as_chunk = TRUE,
+    threeparttable    = TRUE
+  ) %>%
+  kable_styling("striped")
 
 ```
 
@@ -279,16 +454,18 @@ bd <- bind_cols(bd_IPAD,          # juntando variáveis
           bd_petroleo,
           bd_preco_internacional,
           bd_cambio,
-          bd_producao_industrial,
+          bd_IBC,
           bd_assistencia_socail) %>% 
-  select(Ano_mes,
+  dplyr::select(Ano_mes, # selecioanndo variaveis desejadas
          IPAD,
          Petróleo,
          "Preço internacional dos alimentos",
          "Taxa de câmbio",
-         "Produção industrial",
+         "IBC",
          "Assistência social") %>% 
-  mutate("Assistência social" = `Assistência social`/1000000) %>% 
+  mutate("Assistência social" = `Assistência social`/1000000) %>%  # transformar em milhões
+  mutate("Assistência social" = frollmean(`Assistência social`, 4) # media movel dos ultimos 4 meses
+  ) %>% 
   rename(Data = Ano_mes,
          "Assistência social (milhões de reais)" = "Assistência social")
 
@@ -298,22 +475,68 @@ bd$Data <- ymd(bd$Data) %>%         # dta ano-mes
 
 ```
 
-### Colocando base em primeira diferença e log
+A base formada a partir da junção das anteriores é: 
+```{r}
+
+  # Exibe a tabela no arquivo html
+head(bd) %>% 
+  kbl(
+    format      = "html", # Formato desejado
+    align       = "c",    # Informações centralizadas
+    digits      = 2, 
+    booktabs    = TRUE,   # Escala de branco e cinza para visualização
+    format.args = list(big.mark = ".", decimal.mark = ","),
+    caption     = "Base com todas as variáveis", # Título para referência
+    row.names   = FALSE   # Retira o número das linhas
+  ) %>%
+  footnote(
+    general           = "Elaboração própria.",
+    general_title     = "Fonte: ",  # Original: "Note: "
+    footnote_as_chunk = TRUE,
+    threeparttable    = TRUE
+  ) %>%
+  kable_styling("striped")
+
+```
+
+#### Colocando base em primeira diferença e log
+
+Aplicamos primeiro o log e em seguida a primeira diferença. Essa base será utilizada para estimar o VAR.
 
 ```{r}
 
 bd2 <- bd %>% 
-  mutate_if(is.numeric, ~c(F, diff(.))) %>% # primeira diferença
-  filter(Data != "2012-01") %>% 
+  filter(!is.na(`Assistência social (milhões de reais)`)) %>% 
   mutate_if(is.numeric, ~log( .x + 1 - min(.))) %>% # log com correcão para numeros negativos
-  filter(Data <= "2021-06") %>% 
-  select(-Data) # retirar coluna de data
+  mutate_if(is.numeric, ~c(F, diff(.))) %>% # primeira diferença
+  filter(Data != "2012-04") %>%   
+ # filter(Data <= "2021-06") %>%    # só ate junho de 2021
+  dplyr::select(- "Data") # retirar coluna de data
 
-bd2 <- bd2 <- 
+#------------------------
+
+  # Exibe a tabela no arquivo html
+head(bd2) %>% 
+  kbl(
+    format      = "html", # Formato desejado
+    align       = "c",    # Informações centralizadas
+    digits      = 2, 
+    booktabs    = TRUE,   # Escala de branco e cinza para visualização
+    format.args = list(big.mark = ".", decimal.mark = ","),
+    caption     = "Base em log e primeira diferença", # Título para referência
+    row.names   = FALSE   # Retira o número das linhas
+  ) %>%
+  footnote(
+    general           = "Elaboração própria.",
+    general_title     = "Fonte: ",  # Original: "Note: "
+    footnote_as_chunk = TRUE,
+    threeparttable    = TRUE
+  ) %>%
+  kable_styling("striped")
 
 ```
 
-# Modelo VAR
+## Modelo VAR
 
 ```{r}
 library(vars)
@@ -322,7 +545,7 @@ library(ggplot2)
 library(forecast)
 ```
 
-## Graficos
+### Graficos
 
 ```{r}
 
@@ -330,19 +553,19 @@ ts_IPAD <- ts(bd2$IPAD, start = c(2012, 02), frequency = 12)
 ts_petroleo <- ts(bd2$Petróleo, start = c(2012, 02), frequency = 12)
 ts_preco <- ts(bd2$`Preço internacional dos alimentos`, start = c(2012, 02), end = c(2021, 06), frequency = 12)
 ts_cambio <- ts(bd2$`Taxa de câmbio`, start = c(2012, 02), frequency = 12)
-ts_producao <- ts(bd2$`Produção industrial`, start = c(2012, 02), frequency = 12)
+ts_IBC <- ts(bd2$`IBC`, start = c(2012, 02), frequency = 12)
 ts_assistencia <- ts(bd2$`Assistência social (milhões de reais)`, start = c(2012, 02), frequency = 12)
 
-autoplot(ts_IPAD) 
-autoplot(ts_petroleo)
-autoplot(ts_preco)
-autoplot(ts_cambio)
-autoplot(ts_producao)
-autoplot(ts_assistencia)
+forecast::autoplot(ts_petroleo)
+forecast::autoplot(ts_preco)
+forecast::autoplot(ts_cambio)
+forecast::autoplot(ts_IBC)
+forecast::autoplot(ts_assistencia)
+
 
 ```
 
-# estacionariedade
+### Estacionariedade
 
 ```{r}
 # Teste ADF
@@ -353,41 +576,40 @@ print(adf.test(ts_IPAD)) # estacionaria
 print(adf.test(ts_preco)) # estacionaria
 print(adf.test(ts_cambio)) # estacionaria
 print(adf.test(ts_petroleo)) # estacionaria
-print(adf.test(ts_producao)) # estacionaria
+print(adf.test(ts_IBC)) # estacionaria
 print(adf.test(ts_assistencia)) # estacionária
 
 ```
 
-# Escolhendo lags
+### Escolhendo lags
 
 ```{r}
-lag <- VARselect(bd2, lag.max = 5)
+lag <- VARselect(bd2, lag.max = 10)
 lag$selection
-        # AIC e FPE = 2 lags
-        # HQ e SC = 2 lags
+        # Todos = 1 lag
 
 ```
 
-# Estimando
+### Estimando
 
 ```{r}
 estim <- VAR(bd2, p = 1, type = "none")
-
-summary(estim)
 
 library(stargazer)
 
 stargazer(estim[["varresult"]], type = "text")
 ```
 
-# Teste de estabilidade
+### Teste de estabilidade
 
 ```{r}
 
 roots(estim, modulus = TRUE)  # precisa ser menor que 1 pra ser estável :)
 ```
 
-# Causalidade de Granger
+## Resultados 
+
+### Causalidade de Granger
 
 ```{r}
 
@@ -405,31 +627,33 @@ granger3$Granger
 
 granger4 <- causality(estim, cause = "Assistência.social..milhões.de.reais.")  # não causa 
 
-granger4$Granger    # causa granger
+granger4$Granger    # nao causa
 
 
 ```
 
-# Impulso resposta
+### Impulso resposta
 
 ```{r}
 
 
 irf <- irf(estim,
             repsonse = "IPAD",
-            n.ahead = 20,
+            n.ahead = 10,
             boot = TRUE,
             runs = 100,
-            ci = 0.95)
+            ci = 0.95,
+            cumulative = F)
 
-plot(irf2)
+# win.graph(width=15,height=8)
+plot(irf)
 
 ```
 
-# Decompoção da variância
+### Decomposição da variância
 
 ```{r}
-# função plotar grafico variancia
+# função plotar grafico variancia colorido sem legenda
 
 plot.varfevd  <-function (x, plot.type = c("multiple", "single"), names = NULL,
     main = NULL, col = NULL, ylim = NULL, ylab = NULL, xlab = NULL,
@@ -513,13 +737,11 @@ plot.varfevd  <-function (x, plot.type = c("multiple", "single"), names = NULL,
 
 vd <- fevd(estim, n.ahead = 10)
 
-plot(vd) + theme(legend.position = "none")
-
-win.graph(width=13,height=8)
-plot(fevd(estim, n.ahead = 10 ))+ theme(legend.position = "none")
+# win.graph(width=15,height=8)
+plot(fevd(estim, n.ahead = 10 )) # + theme(legend.position = "none")
 
 
-win.graph(width=15,height=8)
+# win.graph(width=15,height=8)
 layout(matrix(1:6, ncol=2))
 plot.varfevd(vd,plot.type = "single", col=1:6)
 ```
