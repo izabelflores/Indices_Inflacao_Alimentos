@@ -1,86 +1,24 @@
 ---
-title: "Inflação de aliemntos no Brasil"
-subtitle: "análise descritiva e econométrica"
-author: 
-  - "Izabel Flores^[UnB]"
-  
-date: "`r format(Sys.Date(),'%d/%m/%Y')`"
-output:
-  bookdown::html_document2:
-    df_print: paged
-    fig_caption: true
-    number_sections: no
-    theme: cerulean
-    toc: no
-    toc_float:
-      collapsed: yes
-      smooth_scroll: yes
-  bookdown::pdf_document2:  
-    citation_package: natbib
-    fig_caption: true
-    number_sections: true
-    toc_depth: 4
-    latex_engine: xelatex
-  bookdown::word_document2: default
-fontsize: 12pt
-linkcolor: blue
-header-includes:
-  - \usepackage{indentfirst}
-  - \usepackage{amsmath}
-  - \usepackage{float}
-  - \setlength{\parindent}{4em}
-  - \setlength{\parskip}{1.5em}
-  - \usepackage{titling}
-  - \pretitle{\begin{center}
-  - \posttitle{\end{center}}
-biblio-style: "apalike"
-link-citations: true
-editor_options: 
-  chunk_output_type: console
+title: "Índices de Preços e Graficos"
+author: "Izabel Flores"
+date: "07/10/2021"
+output: word_document
 ---
 
-# {#inic .tabset}
-
-## Pacotes
-
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(
-  message = FALSE,
-  warning = FALSE,
-  echo    = TRUE,                 # Mostra os códigos automaticamente
-  eval    = TRUE,                  # se quiser rodar o código R - colocar TRUE
-  fig.cap = 'Elaboração própria.', # Legenda automática de figuras
-  fig.pos = 'H'
-)
-```
+## 
 
+library(sidrar) # importar IBGE
+## consultar API http://api.sidra.ibge.gov.br/
+library(dplyr) # manipulacao de dados
+library(stringr) # manipulacao de strings
+library(tidyr) # universo de dados
+library(lubridate) # mexer com data
+library(ggplot2) # graficos
+library(graphics) #apresentacao de graficos
+library(cowplot) # grafico padronizar
+library(knitr) # tabelas
 
-
-```{r, results='hide'}
-carrega_pacotes <- function(){
-if (!require("pacman")) install.packages("pacman")
-pacman::p_load(sidrar,         ## Importar dados IBGE 
-               tidyverse,      ## Pacote de utilidades para manipulação e visualização
-               kableExtra,     ## Elaboração das tabelas em LaTeX e html
-               lubridate,      ## padronização de datas
-               data.table,     ## Facilitar manipulação de tabelas
-               plotly,         ## Graficos
-               colorBlindness, ## Cores mais apropriadas a daltônicos
-               # tibbles,      ## data frames
-               readxl,         ## importar tabelas excel
-               GetBCBData,     ## dados BCB
-               htmltools,     ## ajuste página html
-               cowplot         ## grafico padronizar
-)
-
-options(scipen = 99)           # Ajuste de casas decimais
-
-}
-carrega_pacotes()
-
-```
-
-```{r}
 
 # padrão de grafico
 theme_set(theme_cowplot())
@@ -89,88 +27,47 @@ mytheme = list(
     theme(panel.background = element_blank(),strip.background = element_rect(colour=NA, fill=NA),panel.border = element_rect(fill = NA, color = "black"),
           legend.title = element_blank(),legend.position="bottom", strip.text = element_text(face="bold", size=9),
           axis.text=element_text(face="bold"),axis.title = element_text(face="bold"),plot.title = element_text(face = "bold",size=13))
-  +theme(plot.subtitle=element_text(color="gray"))
 )
+
 ```
 
-## Baixando variáveis
+```{r, echo=TRUE}
+################################################################################
+### BAIXAR E ARRUMAR BASE: PREÇOS ############################################
 
 
-### IPAD
-
-#### Indice cheio
-
-```{r}
-#%% Importar dados IPCA variacao mensal
-
-IPAD1 <-  get_sidra(api='/t/1419/n1/all/v/63/p/all/c315/7171/d/v63%202') # baixar serie até 2020
-
-IPAD2 <-  get_sidra(api='/t/7060/n1/all/v/63/p/first%2030/c315/7171/d/v63%202') # baixar serie 2021 em diante
-
-bd_IPAD <-  bind_rows(IPAD1, IPAD2)%>% # juntar 2 series
-   dplyr::select('Mês (Código)', Valor) %>%  # selecionar variaveis relevantes
-  rename(Data = 'Mês (Código)', # renomear avriaveis
-         IPAD = Valor) %>% 
-  arrange(Data) # ordem crescente de data
-  
-remove(IPAD1, IPAD2) # apaganto series iniciais
-
-#-----------------------------------------------------------------------------
-
-  # Exibe a tabela no arquivo html
-head(bd_IPAD) %>% 
-  kbl(
-    format      = "html", # Formato desejado
-    align       = "c",    # Informações centralizadas
-    digits      = 2, 
-    booktabs    = TRUE,   # Escala de branco e cinza para visualização
-    format.args = list(big.mark = ".", decimal.mark = ","),
-    caption     = "IPAD", # Título para referência
-    row.names   = FALSE   # Retira o número das linhas
-  ) %>%
-  footnote(
-    general           = "(IBGE).",
-    general_title     = "Fonte: ",  # Original: "Note: "
-    footnote_as_chunk = TRUE,
-    threeparttable    = TRUE
-  ) %>%
-  kable_styling("striped")
-```
-
-#### Desagregações
-
-Criando base:
-
-```{r}
-
-#### Desagregação do indice de preços ####
-
-#%% Importar dados IPCA variacao mensal
+# Importar dados IPCA variacao mensal
 
 IPCAalim1 <-  get_sidra(api='/t/1419/n1/all/v/63/p/all/c315/all')
 IPCAalim2 <-  get_sidra(api='/t/7060/n1/all/v/63/p/all/c315/all')
 
 IPCAalim <-  bind_rows(IPCAalim1, IPCAalim2)
 
-remove(IPCAalim1, IPCAalim2)
+remove(IPCAalim1)
+remove(IPCAalim2)
 
-#%% Renomear
+# Renomear
 
 names(IPCAalim)[names(IPCAalim) == 'Geral, grupo, subgrupo, item e subitem'] <- 'grup'
 names(IPCAalim)[names(IPCAalim) == 'Mês (Código)'] <- 'mes_cod'
 
-#%% ordernar POR bem e data
+# ordernar POR bem e data
 
 IPCAalim <- IPCAalim[order(IPCAalim$grup, IPCAalim$mes_cod),]
 
-IPCAalim <- IPCAalim %>% dplyr::select(mes_cod, grup, Valor)
+IPCAalim <- IPCAalim %>% select(mes_cod, grup, Valor)
 
-#%% selecionar apenar alimentos, mudando nome, rearrumando
+# selecionar apenar alimentos, mudando nome, rearrumando
 
 IPCAalim <-IPCAalim %>% 
   filter(str_detect(grup,"^11")) %>% 
-  dplyr::select(mes_cod, grup, Valor) %>% 
+  select(mes_cod, grup, Valor) %>% 
   spread(grup, Valor) 
+
+################################################################################
+### BAIXAR E ARRUMAR BASE: PESOS ###############################################
+
+# Importar dados IPCA peso
 
 IPCAalim1_peso <-  get_sidra(api='/t/1419/n1/all/v/66/p/all/c315/all')
 IPCAalim2_peso <-  get_sidra(api='/t/7060/n1/all/v/66/p/all/c315/all')
@@ -180,25 +77,88 @@ IPCAalim_peso <-  bind_rows(IPCAalim1_peso, IPCAalim2_peso)
 remove(IPCAalim1_peso)
 remove(IPCAalim2_peso)
 
-#%% Renomear
+# Renomear
 
 names(IPCAalim_peso)[names(IPCAalim_peso) == 'Geral, grupo, subgrupo, item e subitem'] <- 'grup'
 names(IPCAalim_peso)[names(IPCAalim_peso) == 'Mês (Código)'] <- 'mes_cod'
 
-#%% ordernar POR bem e data
+# ordernar POR bem e data
 
 IPCAalim_peso <- IPCAalim_peso[order(IPCAalim_peso$grup, IPCAalim_peso$mes_cod),]
 
-#%% selecionar apenar alimentos, renomear e spread
+# selecionar apenar alimentos, renomear e spread
 
 IPCAalim_peso <-IPCAalim_peso %>% 
   filter(str_detect(grup,"^11")) %>% 
-  dplyr::select(mes_cod, grup, Valor) %>% 
+  select(mes_cod, grup, Valor) %>% 
   spread(grup, Valor)
 
+################################################################################
+#### IPCA, IPAB e IPAD #########################################################
 
 
-#### Preço separação cruzda ####
+## IPCA 
+
+# Importar
+
+IPCA_1 <-  get_sidra(api='/t/1419/n1/all/v/63/p/all/c315/7169')
+IPCA_2 <-  get_sidra(api='/t/7060/n1/all/v/63/p/all/c315/7169')
+
+IPCA <-  bind_rows(IPCA_1, IPCA_2)
+
+remove(IPCA_1)
+remove(IPCA_2)
+
+# Renomear, selecionar, arrumar data
+
+library(lubridate)
+
+names(IPCA)[names(IPCA) == 'Mês (Código)'] <- 'mes_cod'
+IPCA <-  IPCA %>% 
+  select(mes_cod, Valor) %>% 
+  mutate(mes_cod = ym(mes_cod))
+
+## IPAB
+
+# Importar
+
+IPAB_1 <- get_sidra(api='/t/1419/n1/all/v/63/p/all/c315/7170')
+IPAB_2 <- get_sidra(api='/t/7060/n1/all/v/63/p/all/c315/7170')
+
+IPAB <- bind_rows(IPAB_1, IPAB_2)
+
+remove(IPAB_1)
+remove(IPAB_2)
+
+# Renomear
+
+names(IPAB)[names(IPAB) == 'Mês (Código)'] <- 'mes_cod'
+IPAB <- IPAB %>% 
+  select(mes_cod, Valor) %>% 
+  mutate(mes_cod = ym(mes_cod))
+
+## IPAD
+
+# Importar
+
+IPAD_1 <- get_sidra(api='/t/1419/n1/all/v/63/p/all/c315/7171')
+IPAD_2 <- get_sidra(api='/t/7060/n1/all/v/63/p/all/c315/7171')
+
+IPAD <- bind_rows(IPAD_1, IPAD_2)
+
+remove(IPAD_1)
+remove(IPAD_2)
+
+# Renomear
+
+names(IPAD)[names(IPAD) == 'Mês (Código)'] <- 'mes_cod'
+IPAD <- IPAD %>% 
+  select(mes_cod, Valor) %>% 
+  mutate(mes_cod = ym(mes_cod))
+
+################################################################################
+### PREÇOS SEPARAÇÃO CRUZADA ####################################################
+
 
 Precos_subgrupos <- IPCAalim %>%select(-`11.Alimentação no domicílio`,
                                        -`1101.Cereais, leguminosas e oleaginosas`,
@@ -419,8 +379,8 @@ precos_NC_IN <- Precos_subgrupos %>% select(mes_cod,
 
 
 
-
-#### Peso separação cruzada ####
+################################################################################
+### PESO SEPARAÇÃO CRUZADA #####################################################  
 
 Pesos_subgrupos <- IPCAalim_peso %>%select(-`11.Alimentação no domicílio`,
                                            -`1101.Cereais, leguminosas e oleaginosas`,
@@ -638,8 +598,8 @@ peso_NC_IN <- Pesos_subgrupos %>% select(mes_cod,
                                          `1105013.Agrião`,
                                          `1105019.Brócolis`)
 
-
-#### Estrutura de ponderação ####
+################################################################################
+### ESTRUTURA DE PONDERACAO ####################################################
 
 # soma dos pesos por mês
 # C_IN
@@ -788,8 +748,8 @@ Indice_NC_SEMI <- numerador_NC_SEMI / denominador_NC_SEMI
 remove(numerador_NC_SEMI)
 remove(denominador_NC_SEMI)
 
-
-#### criando base ####
+################################################################################
+##### criando base #############################################################
 
 Base1 <- merge(IPCA, IPAB, "mes_cod")
 Base1 <-  merge(Base1, IPAD, "mes_cod")
@@ -814,646 +774,246 @@ Base$NC_IN <- round(Base$NC_IN, 2)
 Base$NC_SEMI <- round(Base$NC_SEMI, 2)
 Base$NC_IND <- round(Base$NC_IND, 2)
 
-```
 
+################################################################################
+### APRESENTAÇÃO DOS DADOS ##################################################### 
 
-
-### FOB (petróleo)
-
-Ctação internacionaldo petróleo, disponibilizado pelo IPEA
-
-```{r}
-
-bd_petroleo <- read.csv("cotacao_petroleo.csv") %>%  # ler base petroleo
-  rename(Petróleo = `Commodities...petrÃ³leo...cotaÃ.Ã.o.internacional...US....Fundo.MonetÃ.rio.Internacional..International.Financial.Statistics..FMI.IFS....IFS12_PETROLEUM12`, # renomeando variavel
-         Data = ï..Data) %>% 
-  dplyr::select(Petróleo, Data) %>%  # selecionando variaveis
-  filter(Data >= 2012,      # filtrando periodo desejado
-         Data <= 2022.06)
-
-  # Exibe a tabela no arquivo html
-head(bd_petroleo) %>% 
-  kbl(
-    format      = "html", # Formato desejado
-    align       = "c",    # Informações centralizadas
-    digits      = 2, 
-    booktabs    = TRUE,   # Escala de branco e cinza para visualização
-    format.args = list(big.mark = ".", decimal.mark = ","),
-    caption     = "Preço internacional do petróleo", # Título para referência
-    row.names   = FALSE   # Retira o número das linhas
-  ) %>%
-  footnote(
-    general           = "IPEA.",
-    general_title     = "Fonte: ",  # Original: "Note: "
-    footnote_as_chunk = TRUE,
-    threeparttable    = TRUE
-  ) %>%
-  kable_styling("striped")
-```
-
-
-### Preço internacional dos alimentos disponibilizado pela [FAO](https://www.fao.org/faostat/es/#data/CP)
-
-
-```{r}
-
-bd_preco_internacional <- read.csv("preco_internacional_FAO.csv")%>%  # lendo base
-  rename(Ano = AÃ.o,      # renomeando variaveis
-         Mês = Meses,
-         "Preço internacional dos alimentos" = Valor) %>% 
-  dplyr::select(Ano, Mês, "Preço internacional dos alimentos") # selecionando variaveis
-
-  # Exibe a tabela no arquivo html
-head(bd_preco_internacional) %>% 
-  kbl(
-    format      = "html", # Formato desejado
-    align       = "c",    # Informações centralizadas
-    digits      = 2, 
-    booktabs    = TRUE,   # Escala de branco e cinza para visualização
-    format.args = list(big.mark = ".", decimal.mark = ","),
-    caption     = "Preço internacional dos alimentos", # Título para referência
-    row.names   = FALSE   # Retira o número das linhas
-  ) %>%
-  footnote(
-    general           = "FAO.",
-    general_title     = "Fonte: ",  # Original: "Note: "
-    footnote_as_chunk = TRUE,
-    threeparttable    = TRUE
-  ) %>%
-  kable_styling("striped")
-```
-
-
-### Taxa de câmbio 
-
-Utilizaremos a taxa de câmbio livre para o dolar americano no final do período, ao preço de venda, com periodicidade mensal.
-
-```{r}
-
-bd_cambio <- GetBCBData::gbcbd_get_series(  #baixandobase do BCB
-  id = 3696,   #ID da serie 
-  first.date = "2012-01-01", # periodo inicial
-  last.date = "2022-06-30"   # periodo final
-) %>% 
-  dplyr::select("ref.date", "value") %>%  # selecionando variaveis
-  rename(Ano = ref.date, # renomeando variáveis
-         `Taxa de câmbio` = value)
-
-  # Exibe a tabela no arquivo html
-head(bd_cambio) %>% 
-  kbl(
-    format      = "html", # Formato desejado
-    align       = "c",    # Informações centralizadas
-    digits      = 2, 
-    booktabs    = TRUE,   # Escala de branco e cinza para visualização
-    format.args = list(big.mark = ".", decimal.mark = ","),
-    caption     = "Taxa de câmbio livre", # Título para referência
-    row.names   = FALSE   # Retira o número das linhas
-  ) %>%
-  footnote(
-    general           = "BCB (SGS).",
-    general_title     = "Fonte: ",  # Original: "Note: "
-    footnote_as_chunk = TRUE,
-    threeparttable    = TRUE
-  ) %>%
-  kable_styling("striped")
-
-```
-
-
-### Indicador de de atividade economica (IBC-BR)
-
-Para o nível de atividade econômica, recorremos a série mensal de Utilização da capacidade instalada da indústria de transformação da Fundação Getúlio Vargas (FGV), também disponibilizada pelo BCB.  
-
-```{r}
-bd_IBC <- GetBCBData::gbcbd_get_series(  # baixando basedo BCB
-  id = 24363,
-  first.date = "2012-01-01", # periodo inicial
-  last.date = "2022-06-30"   # periodo final
-) %>% 
-  dplyr::select("ref.date", "value") %>%  # selecionando variaveis
-  rename(Ano_mes = ref.date, # renomeando variáveis
-         `IBC` = value)
-
-  # Exibe a tabela no arquivo html
-head(bd_IBC) %>% 
-  kbl(
-    format      = "html", # Formato desejado
-    align       = "c",    # Informações centralizadas
-    digits      = 2, 
-    booktabs    = TRUE,   # Escala de branco e cinza para visualização
-    format.args = list(big.mark = ".", decimal.mark = ","),
-    caption     = "IBC-BR", # Título para referência
-    row.names   = FALSE   # Retira o número das linhas
-  ) %>%
-  footnote(
-    general           = "BCB (SGS).",
-    general_title     = "Fonte: ",  # Original: "Note: "
-    footnote_as_chunk = TRUE,
-    threeparttable    = TRUE
-  ) %>%
-  kable_styling("striped")
-
-```
-
-### Gastos assistência social 
-
-Obtitod do [Tesouro Transparente](http://www.tesourotransparente.gov.br/ckan/dataset/despesas-e-transferencias-totais).
-Gastos categorizados como assistência social, excluidos os categorizados como previdência + gastos extraordinários com bolsa família e auxílio emergencial.
-
-
-```{r, eval=TRUE}
-
-  # Períodos de interesse para download dos dados
-
-ano_inicial <- 2012
-ano_final   <- 2022
-
-  # Tabela com os índices e os respectivos endereços do repositório do Tesouro
-index <- 
-  
-  tribble(
-   
-    ~ano,                ~sufixo, 
-    
-    2012,               "975adef6-f5d8-4335-897e-f8c4a5a5aeaf",
-    2013,               "889ee485-2dc8-492b-8bd2-dff0b0785817",
-    2014,               "f0abf45a-5cbe-49fc-92c9-44ce3c743f2b",
-    2015,               "a6767172-8749-4470-9949-91825e6ab72a",
-    2016,               "903c1716-d304-4fed-9f1d-322a4e21bbbf",
-    2017,               "9fdccd4d-cb62-4a89-9f22-988299bfda28",
-    2018,               "5d9c3471-9c13-409f-a84a-556b8acf07c7",
-    2019,               "e9ae7557-a334-4353-9b02-3f08641afcf7",
-    2020,               "ea213a0b-26f0-4525-90ec-4e0c3847a48e",
-    2021,               "a66311e0-fb60-4354-b6d4-5ed3dbe7b297",
-    2022,               "96744fdd-91c6-46e0-a1c4-253fae51936c")
-
-
-  # Seleciona os anos de interesse de simulação 
-
-periodo <- index %>% filter(ano == c(ano_inicial:ano_final))
-
-  # Cria os links para download
-url_bases <- paste0(
-  "https://www.tesourotransparente.gov.br/ckan/dataset/8675a0a4-31c5-4593-a24d-fb8e17376eca/resource/",
-  periodo$sufixo,
-  "/download/Base-Despesas-",
-  periodo$ano,
-  ".xlsx"
-) %>%
-  as.list() %>%
-  set_names(periodo$ano)
-  # baixar arquivos em pasta temporaria
-
-purrr::walk2(url_bases,
-             url_bases %>% names(),
-             ~ download.file(.x,
-                             destfile = paste0(tempdir(),
-                                               .y),
-                             mode = "wb"))
-  # caminho pastas
-path <- paste0(tempdir(), periodo$ano)
-
-#----------------------------------
-
-  # lendo sheets
-
-importar_tabelas <- function(path, sheet){
-  
-  readxl::read_excel(path,
-                     sheet     = 2) %>%
-    dplyr::select(ID_ANO,
-           ID_MES,
-           NO_FUNCAO_PT,          # Em que áreas de despesa a ação governamental será realizada?
-           NO_PROGRAMA_PT,        # O que se pretende alcançar com a implementação da Política Pública?
-           NO_ACAO,               # O que será desenvolvido para alcançar o objetivo do programa?
-           PRIMARIA_FINANCEIRA,   # Informa se a despesa é primária ou financeira)
-           PAGAMENTOS_TOTAIS    # Informa o montante de pagamentos realizados (despesas pagas + restos a pagar pagos)
-    ) %>% 
-    filter(NO_FUNCAO_PT == "ASSISTENCIA SOCIAL")
-}
-  
-
-  # Importa as tabelas e agrupa os anos numa única tabela
-bd_assistencia_socail <- purrr::map(path, importar_tabelas) %>%
-  purrr::set_names(index$ano) %>% 
-  bind_rows()
-
-# ---------------------
-
-```
-
-A base importada: 
-```{r}
-
-  # Exibe a tabela no arquivo html
-head(bd_assistencia_socail) %>% 
-  kbl(
-    format      = "html", # Formato desejado
-    align       = "c",    # Informações centralizadas
-    digits      = 2, 
-    booktabs    = TRUE,   # Escala de branco e cinza para visualização
-    format.args = list(big.mark = ".", decimal.mark = ","),
-    caption     = "Despesas e transferências totais", # Título para referência
-    row.names   = FALSE   # Retira o número das linhas
-  ) %>%
-  footnote(
-    general           = "Tesouro Nacional.",
-    general_title     = "Fonte: ",  # Original: "Note: "
-    footnote_as_chunk = TRUE,
-    threeparttable    = TRUE
-  ) %>%
-  kable_styling("striped")
-
-#-----------------------
-  # conferindo
-
-bd_assistencia_socail <- bd_assistencia_socail %>% 
-  filter(PRIMARIA_FINANCEIRA == "Primária",  # filtras só para despesas primarias
-         str_detect(NO_ACAO,       "BPC|TRANSFERENCIA|AUXILIO|DISTRIBUICAO") & # BPC, transferencias (bolsa familia), Auxilios (gas, aliemntaçao, etc) e distribuição de laimentos
-         !str_detect(NO_ACAO, "OPERACIONALIZACAO|PROCESSAMENTO")) # nao contabilizar gastos com operacionalização e processamento, mesmo que dentro das rubricas supracitadas
-
-```
-
-As rúbricas das ações contabilizadas para calcular os gastos com assistência social são:
-
-```{r}
-#------------------------
-
-acao <- bd_assistencia_socail %>%      # escrever no artigo as acoes que usaremos
-  count(NO_ACAO)
-
-  # Exibe a tabela no arquivo html
-acao$NO_ACAO %>% 
-  kbl(
-    format      = "html", # Formato desejado
-    align       = "c",    # Informações centralizadas
-    digits      = 2, 
-    booktabs    = TRUE,   # Escala de branco e cinza para visualização
-    format.args = list(big.mark = ".", decimal.mark = ","),
-    caption     = "Base com todas as variáveis", # Título para referência
-    row.names   = FALSE   # Retira o número das linhas
-  ) %>%
-  footnote(
-    general           = "Elaboração própria.",
-    general_title     = "Fonte: ",  # Original: "Note: "
-    footnote_as_chunk = TRUE,
-    threeparttable    = TRUE
-  ) %>%
-  kable_styling("striped")
-
-```
-
-
-As transferências totais com assistência social são:
-
-```{r}
-
-bd_assistencia_socail <- bd_assistencia_socail %>%
-  dplyr::select(ID_ANO, ID_MES, PAGAMENTOS_TOTAIS) %>% 
-  group_by(ID_ANO, ID_MES) %>% 
-  summarise(
-    PAGAMENTOS_TOTAIS    = sum(PAGAMENTOS_TOTAIS)
-  ) %>% 
-  filter(ID_ANO != 2022 | ID_MES <= 6) %>% 
-  arrange(ID_ANO, ID_MES) %>% 
-  rename("Assistência social" = PAGAMENTOS_TOTAIS)
-
-
-  # Exibe a tabela no arquivo html
-head(bd_assistencia_socail) %>% 
-  kbl(
-    format      = "html", # Formato desejado
-    align       = "c",    # Informações centralizadas
-    digits      = 2, 
-    booktabs    = TRUE,   # Escala de branco e cinza para visualização
-    format.args = list(big.mark = ".", decimal.mark = ","),
-    caption     = "Despesas e transferências totais", # Título para referência
-    row.names   = FALSE   # Retira o número das linhas
-  ) %>%
-  footnote(
-    general           = "Tesouro Nacional.",
-    general_title     = "Fonte: ",  # Original: "Note: "
-    footnote_as_chunk = TRUE,
-    threeparttable    = TRUE
-  ) %>%
-  kable_styling("striped")
-
-```
-
-## Criando bases
-
-```{r}
-
-bd <- bind_cols(bd_IPAD,          # juntando variáveis
-          bd_petroleo,
-          bd_preco_internacional,
-          bd_cambio,
-          bd_IBC,
-          bd_assistencia_socail) %>% 
-  dplyr::select(Ano_mes, # selecioanndo variaveis desejadas
-         IPAD,
-         Petróleo,
-         "Preço internacional dos alimentos",
-         "Taxa de câmbio",
-         "IBC",
-         "Assistência social") %>% 
-  mutate("Assistência social" = `Assistência social`/1000000) %>%  # transformar em milhões
-  mutate("Assistência social" = frollmean(`Assistência social`, 4) # media movel dos ultimos 4 meses
-  ) %>% 
-  rename(Data = Ano_mes,
-         "Assistência social (milhões de reais)" = "Assistência social")
-
-
-bd$Data <- ymd(bd$Data) %>%         # dta ano-mes
-  strftime(bd$Data,format="%Y-%m")
-
-```
-
-A base formada a partir da junção das anteriores é: 
-```{r}
-
-  # Exibe a tabela no arquivo html
-head(bd) %>% 
-  kbl(
-    format      = "html", # Formato desejado
-    align       = "c",    # Informações centralizadas
-    digits      = 2, 
-    booktabs    = TRUE,   # Escala de branco e cinza para visualização
-    format.args = list(big.mark = ".", decimal.mark = ","),
-    caption     = "Base com todas as variáveis", # Título para referência
-    row.names   = FALSE   # Retira o número das linhas
-  ) %>%
-  footnote(
-    general           = "Elaboração própria.",
-    general_title     = "Fonte: ",  # Original: "Note: "
-    footnote_as_chunk = TRUE,
-    threeparttable    = TRUE
-  ) %>%
-  kable_styling("striped")
-
-```
-
-#### Colocando base em primeira diferença e log
-
-Aplicamos primeiro o log e em seguida a primeira diferença. Essa base será utilizada para estimar o VAR.
-
-```{r}
-
-bd2 <- bd %>% 
-  filter(!is.na(`Assistência social (milhões de reais)`)) %>% 
-  mutate_if(is.numeric, ~log( .x + 1 - min(.))) %>% # log com correcão para numeros negativos
-  mutate_if(is.numeric, ~c(F, diff(.))) %>% # primeira diferença
-  filter(Data != "2012-04") %>%   
- # filter(Data <= "2021-06") %>%    # só ate junho de 2021
-  dplyr::select(- "Data") # retirar coluna de data
-
-#------------------------
-
-  # Exibe a tabela no arquivo html
-head(bd2) %>% 
-  kbl(
-    format      = "html", # Formato desejado
-    align       = "c",    # Informações centralizadas
-    digits      = 2, 
-    booktabs    = TRUE,   # Escala de branco e cinza para visualização
-    format.args = list(big.mark = ".", decimal.mark = ","),
-    caption     = "Base em log e primeira diferença", # Título para referência
-    row.names   = FALSE   # Retira o número das linhas
-  ) %>%
-  footnote(
-    general           = "Elaboração própria.",
-    general_title     = "Fonte: ",  # Original: "Note: "
-    footnote_as_chunk = TRUE,
-    threeparttable    = TRUE
-  ) %>%
-  kable_styling("striped")
-
-```
-
-## Análise descritiva
-
-```{r}
-
-ggplot(bd_IBC, aes(x = Ano_mes, y = IBC, group=1)) +
-  geom_line(size= 0.3, color= "red")+
-  labs(title = 'IBC',
+ggplot(Base, aes(x = mes_cod, y = IPCA)) +
+  geom_line()+
+  labs(title = 'IPCA',
        subtitle = "Variação mensal",
-       x = "Data",
-       y = "Variação",
+       x = element_blank(),
+       y = element_blank(),
        caption = 'Fonte: IPEA, elaboração própria')+ 
   mytheme
 
+ggplot(Base, aes(x = mes_cod, y = IPAB)) +
+  geom_line()+
+  labs(title = 'IPAB',
+       subtitle = "Variação mensal",
+       x = element_blank(),
+       y = element_blank(),
+       caption = 'Fonte: IPEA, elaboração própria')+ 
+  mytheme
+
+ggplot(Base, aes(x = mes_cod, y = IPAD)) +
+  geom_line()+
+  labs(title = 'IPAD',
+       subtitle = "Variação mensal",
+       x = element_blank(),
+       y = element_blank(),
+       caption = 'Fonte: IPEA, elaboração própria')+ 
+  mytheme
+
+
+ggplot(Base, aes(x = mes_cod, y = C_IN)) +
+  geom_line()+
+  labs(title = 'Inflação Alimentos Comercializáveis In Natura',
+       subtitle = "Variação mensal",
+       x = element_blank(),
+       y = element_blank(),
+       caption = 'Fonte: IPEA, elaboração própria')+ 
+  mytheme
+
+ggplot(Base, aes(x = mes_cod, y = C_SEMI)) +
+  geom_line()+
+  labs(title = 'Inflação Alimentos Comercializáveis Semielaborados',
+       subtitle = "Variação mensal",
+       x = element_blank(),
+       y = element_blank(),
+       caption = 'Fonte: IPEA, elaboração própria')+ 
+  mytheme
+
+ggplot(Base, aes(x = mes_cod, y = C_IND)) +
+  geom_line()+
+  labs(title = 'Inflação Alimentos Comercializáveis Industrializados',
+       subtitle = "Variação mensal",
+       x = element_blank(),
+       y = element_blank(),
+       caption = 'Fonte: IPEA, elaboração própria')+ 
+  mytheme
+
+
+
+ggplot(Base, aes(x = mes_cod, y = NC_IN)) +
+  geom_line()+
+  labs(title = 'Inflação Alimentos Não Comercializáveis In Natura',
+       subtitle = "Variação mensal",
+       x = element_blank(),
+       y = element_blank(),
+       caption = 'Fonte: IPEA, elaboração própria')+ 
+  mytheme
+
+ggplot(Base, aes(x = mes_cod, y = NC_SEMI)) +
+  geom_line()+
+  labs(title = 'Inflação Alimentos Não Comercializáveis Semielaborados',
+       subtitle = "Variação mensal",
+       x = element_blank(),
+       y = element_blank(),
+       caption = 'Fonte: IPEA, elaboração própria')+ 
+  mytheme
+
+ggplot(Base, aes(x = mes_cod, y = NC_IND)) +
+  geom_line()+
+  labs(title = 'Inflação Alimentos Não Comercializáveis Industrializados',
+       subtitle = "Variação mensal",
+       x = element_blank(),
+       y = element_blank(),
+       caption = 'Fonte: IPEA, elaboração própria')+ 
+  mytheme
+
+
+
+kable(Base)
+
+################################################################################
+#### ANUALIZANDO ###############################################################
+
+### Acumular em 12 meses
+
+lag1 <- lag(Base, 1) 
+lag2 <- lag(Base, 2) 
+lag3 <- lag(Base, 3) 
+lag4 <- lag(Base, 4) 
+lag5 <- lag(Base, 5) 
+lag6 <- lag(Base, 6) 
+lag7 <- lag(Base, 7) 
+lag8 <- lag(Base, 8) 
+lag9 <- lag(Base, 9) 
+lag10 <- lag(Base, 10) 
+lag11 <- lag(Base, 11) 
+lag12 <- lag(Base, 12)
+
+Base_12meses <- Base
+
+Base_12meses$IPCA <- Base$IPCA + lag1$IPCA + lag2$IPCA + lag3$IPCA + lag4$IPCA + lag5$IPCA +
+  lag6$IPCA + lag7$IPCA + lag8$IPCA + lag9$IPCA + lag10$IPCA + lag11$IPCA + lag12$IPCA
+
+Base_12meses$IPAB <- Base$IPAB + lag1$IPAB + lag2$IPAB + lag3$IPAB + lag4$IPAB + lag5$IPAB +
+  lag6$IPAB + lag7$IPAB + lag8$IPAB + lag9$IPAB + lag10$IPAB + lag11$IPAB + lag12$IPAB
+
+Base_12meses$IPAD <- Base$IPAD + lag1$IPAD + lag2$IPAD + lag3$IPAD + lag4$IPAD + lag5$IPAD +
+  lag6$IPAD + lag7$IPAD + lag8$IPAD + lag9$IPAD + lag10$IPAD + lag11$IPAD + lag12$IPAD
+
+Base_12meses$C_IN <- Base$C_IN + lag1$C_IN + lag2$C_IN + lag3$C_IN + lag4$C_IN + lag5$C_IN + 
+  lag6$C_IN + lag7$C_IN + lag8$C_IN + lag9$C_IN + lag10$C_IN + lag11$C_IN +  lag12$C_IN 
+
+Base_12meses$C_SEMI <- Base$C_SEMI + lag1$C_SEMI + lag2$C_SEMI + lag3$C_SEMI + lag4$C_SEMI + lag5$C_SEMI + 
+  lag6$C_SEMI + lag7$C_SEMI + lag8$C_SEMI + lag9$C_SEMI + lag10$C_SEMI + lag11$C_SEMI + lag12$C_SEMI 
+
+Base_12meses$C_IND <- Base$C_IND + lag1$C_IND + lag2$C_IND + lag3$C_IND + lag4$C_IND + lag5$C_IND + 
+  lag6$C_IND + lag7$C_IND + lag8$C_IND + lag9$C_IND + lag10$C_IND + lag11$C_IND + lag12$C_IND
+
+Base_12meses$NC_IN <- Base$NC_IN + lag1$NC_IN + lag2$NC_IN + lag3$NC_IN + lag4$NC_IN + lag5$NC_IN + 
+  lag6$NC_IN + lag7$NC_IN + lag8$NC_IN + lag9$NC_IN + lag10$NC_IN + lag11$NC_IN + lag12$NC_IN
+
+Base_12meses$NC_SEMI <-  Base$NC_SEMI + lag1$NC_SEMI + lag2$NC_SEMI + lag3$NC_SEMI + lag4$NC_SEMI + lag5$NC_SEMI + 
+  lag6$NC_SEMI + lag7$NC_SEMI + lag8$NC_SEMI + lag9$NC_SEMI + lag10$NC_SEMI + lag11$NC_SEMI + lag12$NC_SEMI
+
+Base_12meses$NC_IND <- Base$NC_IND + lag1$NC_IND + lag2$NC_IND + lag3$NC_IND + lag4$NC_IND + lag5$NC_IND + 
+  lag6$NC_IND + lag7$NC_IND + lag8$NC_IND + lag9$NC_IND + lag10$NC_IND + lag11$NC_IND + lag12$NC_IND
+
+remove(lag1)
+remove(lag2)
+remove(lag3)
+remove(lag4)
+remove(lag5)
+remove(lag6)
+remove(lag7)
+remove(lag8)
+remove(lag9)
+remove(lag10)
+remove(lag11)
+remove(lag12)
+
+
+################################################################################
+### APRESENTAÇÃO DOS DADOS ANUALIZADOS #########################################
+
+ggplot(Base_12meses, aes(x = mes_cod, y = IPCA)) +
+  geom_line()+
+  labs(title = 'IPCA',
+       subtitle = "Variação acumulada em 12 meses",
+       x = element_blank(),
+       y = element_blank(),
+       caption = 'Fonte: IPEA, elaboração própria')+ 
+  mytheme
+
+ggplot(Base_12meses, aes(x = mes_cod, y = IPAB)) +
+  geom_line()+
+  labs(title = 'IPAB',
+       subtitle = "Variação acumulada em 12 meses",
+       x = element_blank(),
+       y = element_blank(),
+       caption = 'Fonte: IPEA, elaboração própria')+ 
+  mytheme
+
+ggplot(Base_12meses, aes(x = mes_cod, y = IPAD)) +
+  geom_line()+
+  labs(title = 'IPAD',
+       subtitle = "Variação acumulada em 12 meses",
+       x = element_blank(),
+       y = element_blank(),
+       caption = 'Fonte: IPEA, elaboração própria')+ 
+  mytheme
+
+
+ggplot(Base_12meses, aes(x = mes_cod, y = C_IN)) +
+  geom_line()+
+  labs(title = 'Inflaçao Alimentos Comercializáveis In Natura',
+       subtitle = "Variação acumulada em 12 meses",
+       x = element_blank(),
+       y = element_blank(),
+       caption = 'Fonte: IPEA, elaboração própria')+ 
+  mytheme
+
+ggplot(Base_12meses, aes(x = mes_cod, y = C_SEMI)) +
+  geom_line()+
+  labs(title = 'Inflação Alimentos Comercializáveis Semielaborados',
+       subtitle = "Variação acumulada em 12 meses",
+       x = element_blank(),
+       y = element_blank(),
+       caption = 'Fonte: IPEA, elaboração própria')+ 
+  mytheme
+
+ggplot(Base_12meses, aes(x = mes_cod, y = C_IND)) +
+  geom_line()+
+  labs(title = 'Inflação Alimentos Comercializáveis Industrializados',
+       subtitle = "Variação acumulada em 12 meses",
+       x = element_blank(),
+       y = element_blank(),
+       caption = 'Fonte: IPEA, elaboração própria')+ 
+  mytheme
+
+ggplot(Base_12meses, aes(x = mes_cod, y = NC_IN)) +
+  geom_line()+
+  labs(title = 'Inflação Alimentos Não Comercializáveis In Natura',
+       subtitle = "Variação acumulada em 12 meses",
+       x = element_blank(),
+       y = element_blank(),
+       caption = 'Fonte: IPEA, elaboração própria')+ 
+  mytheme
+
+ggplot(Base_12meses, aes(x = mes_cod, y = NC_SEMI)) +
+  geom_line()+
+  labs(title = 'Inflação Alimentos Não Comercializáveis Semielaborados',
+       subtitle = "Variação acumulada em 12 meses",
+       x = element_blank(),
+       y = element_blank(),
+       caption = 'Fonte: IPEA, elaboração própria')+ 
+  mytheme
+
+ggplot(Base_12meses, aes(x = mes_cod, y = NC_IND)) +
+  geom_line()+
+  labs(title = 'Inflação Alimentos Não Comercializáveis Industrializados',
+       subtitle = "Variação acumulada em 12 meses",
+       x = element_blank(),
+       y = element_blank(),
+       caption = 'Fonte: IPEA, elaboração própria')+ 
+  mytheme
+
+
+
+kable(Base_12meses)
+
 ```
-
-
-## Modelo VAR
-
-```{r}
-library(vars)
-library(tseries)
-library(ggplot2)
-library(forecast)
-```
-
-### Graficos
-
-```{r}
-
-ts_IPAD <- ts(bd2$IPAD, start = c(2012, 02), frequency = 12)
-ts_petroleo <- ts(bd2$Petróleo, start = c(2012, 02), frequency = 12)
-ts_preco <- ts(bd2$`Preço internacional dos alimentos`, start = c(2012, 02), end = c(2021, 06), frequency = 12)
-ts_cambio <- ts(bd2$`Taxa de câmbio`, start = c(2012, 02), frequency = 12)
-ts_IBC <- ts(bd2$`IBC`, start = c(2012, 02), frequency = 12)
-ts_assistencia <- ts(bd2$`Assistência social (milhões de reais)`, start = c(2012, 02), frequency = 12)
-
-forecast::autoplot(ts_petroleo)
-forecast::autoplot(ts_preco)
-forecast::autoplot(ts_cambio)
-forecast::autoplot(ts_IBC)
-forecast::autoplot(ts_assistencia)
-
-
-```
-
-### Estacionariedade
-
-```{r}
-# Teste ADF
-
-    # reheitar hipotese nula = serie estacionária :)
-
-print(adf.test(ts_IPAD)) # estacionaria
-print(adf.test(ts_preco)) # estacionaria
-print(adf.test(ts_cambio)) # estacionaria
-print(adf.test(ts_petroleo)) # estacionaria
-print(adf.test(ts_IBC)) # estacionaria
-print(adf.test(ts_assistencia)) # estacionária
-
-```
-
-### Escolhendo lags
-
-```{r}
-lag <- VARselect(bd2, lag.max = 10)
-lag$selection
-        # Todos = 1 lag
-
-```
-
-### Estimando
-
-```{r}
-estim <- VAR(bd2, p = 1, type = "none")
-
-library(stargazer)
-
-stargazer(estim[["varresult"]], type = "text")
-```
-
-### Teste de estabilidade
-
-```{r}
-
-roots(estim, modulus = TRUE)  # precisa ser menor que 1 pra ser estável :)
-```
-
-## Resultados 
-
-### Causalidade de Granger
-
-```{r}
-
-granger1 <- causality(estim, cause = "Petróleo")
-
-granger1$Granger  # petroleo causa
-
-granger2 <- causality(estim, cause = "IPAD")           # IPAD não causa
-
-granger2$Granger
-
-granger3 <- causality(estim, cause = "Preço.internacional.dos.alimentos")  # não causa 
-
-granger3$Granger
-
-granger4 <- causality(estim, cause = "Assistência.social..milhões.de.reais.")  # não causa 
-
-granger4$Granger    # nao causa
-
-
-```
-
-### Impulso resposta
-
-```{r}
-
-
-irf <- irf(estim,
-            repsonse = "IPAD",
-            n.ahead = 10,
-            boot = TRUE,
-            runs = 100,
-            ci = 0.95,
-            cumulative = F)
-
-# win.graph(width=15,height=8)
-plot(irf)
-
-```
-
-### Decomposição da variância
-
-```{r}
-# função plotar grafico variancia colorido sem legenda
-
-plot.varfevd  <-function (x, plot.type = c("multiple", "single"), names = NULL,
-    main = NULL, col = NULL, ylim = NULL, ylab = NULL, xlab = NULL,
-    legend = FALSE, names.arg = NULL, nc, mar = par("mar"), oma = par("oma"),
-    addbars = 1, ...)
-{
-    K <- length(x)
-    ynames <- names(x)
-    plot.type <- match.arg(plot.type)
-    if (is.null(names)) {
-        names <- ynames
-    }
-    else {
-        names <- as.character(names)
-        if (!(all(names %in% ynames))) {
-            warning("\nInvalid variable name(s) supplied, using first variable.\n")
-            names <- ynames[1]
-        }
-    }
-       nv <- length(names)
-#    op <- par(no.readonly = TRUE)
-    ifelse(is.null(main), main <- paste("FEVD for", names), main <- rep(main,
-        nv)[1:nv])
-    ifelse(is.null(col), col <- gray.colors(K), col <- rep(col,
-        K)[1:K])
-    ifelse(is.null(ylab), ylab <- rep("Percentage", nv), ylab <- rep(ylab,
-        nv)[1:nv])
-    ifelse(is.null(xlab), xlab <- rep("Horizon", nv), xlab <- rep(xlab,
-        nv)[1:nv])
-    ifelse(is.null(ylim), ylim <- c(0, 1), ylim <- ylim)
-    ifelse(is.null(legend), legend <- ynames, legend <- legend)
-    if (is.null(names.arg))
-        names.arg <- c(paste(1:nrow(x[[1]])), rep(NA, addbars))
-    plotfevd <- function(x, main, col, ylab, xlab, names.arg,
-        ylim, ...) {
-        addbars <- as.integer(addbars)
-        if (addbars > 0) {
-            hmat <- matrix(0, nrow = K, ncol = addbars)
-            xvalue <- cbind(t(x), hmat)
-            barplot(xvalue, main = main, col = col, ylab = ylab,
-                xlab = xlab, names.arg = names.arg, ylim = ylim,
-                legend.text = legend, ...)
-            abline(h = 0)
-        }
-        else {
-            xvalue <- t(x)
-            barplot(xvalue, main = main, col = col, ylab = ylab,
-                xlab = xlab, names.arg = names.arg, ylim = ylim,
-                ...)
-            abline(h = 0)
-        }
-    }
-    if (plot.type == "single") {
-#        par(mar = mar, oma = oma)
-#        if (nv > 1)
-#            par(ask = TRUE)
-        for (i in 1:nv) {
-            plotfevd(x = x[[names[i]]], main = main[i], col = col,
-                ylab = ylab[i], xlab = xlab[i], names.arg = names.arg,
-                ylim = ylim, ...)
-        }
-    }
-    else if (plot.type == "multiple") {
-        if (missing(nc)) {
-            nc <- ifelse(nv > 4, 2, 1)
-        }
-        nr <- ceiling(nv/nc)
-        par(mfcol = c(nr, nc), mar = mar, oma = oma)
-        for (i in 1:nv) {
-            plotfevd(x = x[[names[i]]], main = main[i], col = col,
-                ylab = ylab[i], xlab = xlab[i], names.arg = names.arg,
-                ylim = ylim, ...)
-        }
-    }
-#    on.exit(par(op))
-}
-```
-
-
-```{r}
-
-vd <- fevd(estim, n.ahead = 10)
-
-# win.graph(width=15,height=8)
-plot(fevd(estim, n.ahead = 10 )) # + theme(legend.position = "none")
-
-
-# win.graph(width=15,height=8)
-layout(matrix(1:6, ncol=2))
-plot.varfevd(vd,plot.type = "single", col=1:6)
-```
-
