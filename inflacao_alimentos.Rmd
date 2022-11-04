@@ -139,684 +139,6 @@ head(bd_IPAD) %>%
 
 #### Desagregações
 
-Criando base:
-
-```{r}
-
-#### Desagregação do indice de preços ####
-
-#%% Importar dados IPCA variacao mensal
-
-IPCAalim1 <-  get_sidra(api='/t/1419/n1/all/v/63/p/all/c315/all')
-IPCAalim2 <-  get_sidra(api='/t/7060/n1/all/v/63/p/all/c315/all')
-
-IPCAalim <-  bind_rows(IPCAalim1, IPCAalim2)
-
-remove(IPCAalim1, IPCAalim2)
-
-#%% Renomear
-
-names(IPCAalim)[names(IPCAalim) == 'Geral, grupo, subgrupo, item e subitem'] <- 'grup'
-names(IPCAalim)[names(IPCAalim) == 'Mês (Código)'] <- 'mes_cod'
-
-#%% ordernar POR bem e data
-
-IPCAalim <- IPCAalim[order(IPCAalim$grup, IPCAalim$mes_cod),]
-
-IPCAalim <- IPCAalim %>% dplyr::select(mes_cod, grup, Valor)
-
-#%% selecionar apenar alimentos, mudando nome, rearrumando
-
-IPCAalim <-IPCAalim %>% 
-  filter(str_detect(grup,"^11")) %>% 
-  dplyr::select(mes_cod, grup, Valor) %>% 
-  spread(grup, Valor) 
-
-IPCAalim1_peso <-  get_sidra(api='/t/1419/n1/all/v/66/p/all/c315/all')
-IPCAalim2_peso <-  get_sidra(api='/t/7060/n1/all/v/66/p/all/c315/all')
-
-IPCAalim_peso <-  bind_rows(IPCAalim1_peso, IPCAalim2_peso)
-
-remove(IPCAalim1_peso)
-remove(IPCAalim2_peso)
-
-#%% Renomear
-
-names(IPCAalim_peso)[names(IPCAalim_peso) == 'Geral, grupo, subgrupo, item e subitem'] <- 'grup'
-names(IPCAalim_peso)[names(IPCAalim_peso) == 'Mês (Código)'] <- 'mes_cod'
-
-#%% ordernar POR bem e data
-
-IPCAalim_peso <- IPCAalim_peso[order(IPCAalim_peso$grup, IPCAalim_peso$mes_cod),]
-
-#%% selecionar apenar alimentos, renomear e spread
-
-IPCAalim_peso <-IPCAalim_peso %>% 
-  filter(str_detect(grup,"^11")) %>% 
-  dplyr::select(mes_cod, grup, Valor) %>% 
-  spread(grup, Valor)
-
-
-
-#### Preço separação cruzda ####
-
-Precos_subgrupos <- IPCAalim %>%select(-`11.Alimentação no domicílio`,
-                                       -`1101.Cereais, leguminosas e oleaginosas`,
-                                       -`1102.Farinhas, féculas e massas`,
-                                       -`1103.Tubérculos, raízes e legumes`,
-                                       -`1104.Açúcares e derivados`,
-                                       -`1105.Hortaliças e verduras`,
-                                       -`1106.Frutas`,
-                                       -`1107.Carnes`,
-                                       -`1108.Pescados`,
-                                       -`1109.Carnes e peixes industrializados`,
-                                       -`1110.Aves e ovos`,
-                                       -`1111.Leites e derivados`,
-                                       -`1112.Panificados`,
-                                       -`1113.Óleos e gorduras`,
-                                       -`1114.Bebidas e infusões`,
-                                       -`1115.Enlatados e conservas`,
-                                       -`1116.Sal e condimentos`)
-
-precos_C_IND <- Precos_subgrupos %>% select(mes_cod,
-                                            `1102001.Farinha de arroz`,
-                                            `1102006.Macarrão`,
-                                            `1102008.Fubá de milho`,
-                                            `1102009.Amido de milho`,
-                                            `1102012.Farinha de trigo`,
-                                            `1102013.Farinha vitaminada`,
-                                            `1102029.Massa semipreparada`,
-                                            `1102061.Macarrão instantâneo`,
-                                            `1104003.Açúcar refinado`,
-                                            `1104004.Açúcar cristal`,
-                                            `1104018.Balas`,
-                                            `1104023.Chocolate em barra e bombom`,
-                                            `1104032.Sorvete`,
-                                            `1104052.Chocolate e achocolatado em pó`,
-                                            `1104060.Doce de frutas em pasta`,
-                                            `1104067.Açúcar demerara`,
-                                            `1109002.Presunto`,
-                                            `1109007.Salsicha`,
-                                            `1109008.Linguiça`,
-                                            `1109010.Mortadela`,
-                                            `1109012.Salame`,
-                                            `1109023.Bacalhau`,
-                                            `1109056.Carne-seca e de sol`,
-                                            `1109058.Carne de porco salgada e defumada`,
-                                            `1109088.Hambúrger`,
-                                            `1111009.Leite em pó`,
-                                            `1112003.Biscoito`,
-                                            `1112018.Pão de forma`,
-                                            `1112025.Pão de queijo`,
-                                            `1113013.Óleo de soja`,
-                                            `1113014.Azeite de oliva`,
-                                            `1113040.Margarina`,
-                                            `1114001.Suco de frutas`,
-                                            `1114003.Polpa de fruta (congelada)`,
-                                            `1114004.Açaí (emulsão)`,
-                                            `1114022.Café moído`,
-                                            `1114023.Café solúvel`,
-                                            `1114029.Chá`,
-                                            `1114083.Refrigerante e água mineral`,
-                                            `1114084.Cerveja`,
-                                            `1114085.Outras bebidas alcoólicas`,
-                                            `1114087.Vinho`,
-                                            `1114090.Suco em pó`,
-                                            `1114091.Chá mate (erva mate)`,
-                                            `1115004.Coco ralado`,
-                                            `1115006.Ervilha em conserva`,
-                                            `1115013.Alimento infantil`,
-                                            `1115016.Palmito em conserva`,
-                                            `1115017.Pepino em conserva`,
-                                            `1115039.Sardinha em conserva`,
-                                            `1115050.Salsicha em conserva`,
-                                            `1115051.Carne em conserva`,
-                                            `1115053.Patê`,
-                                            `1115056.Sopa desidratada`,
-                                            `1115057.Azeitona`,
-                                            `1115058.Milho-verde em conserva`,
-                                            `1115075.Atum em conserva`,
-                                            `1116001.Leite de coco`,
-                                            `1116005.Atomatado`,
-                                            `1116010.Alho`,
-                                            `1116013.Sal`,
-                                            `1116022.Colorau`,
-                                            `1116023.Caldo de tucupi`,
-                                            `1116026.Fermento`,
-                                            `1116033.Maionese`,
-                                            `1116041.Vinagre`,
-                                            `1116048.Caldo concentrado`,
-                                            `1116071.Tempero misto`)
-
-precos_C_SEMI <- Precos_subgrupos %>% select(mes_cod,
-                                             `1101002.Arroz`,
-                                             `1101079.Milho (em grão)`,
-                                             `1107009.Fígado`,
-                                             `1107018.Carne de porco`,
-                                             `1107031.Carne de carneiro`,
-                                             `1107081.Cupim`,
-                                             `1107084.Contrafilé`,
-                                             `1107085.Filé-mignon`,
-                                             `1107087.Chã de dentro`,
-                                             `1107088.Alcatra`,
-                                             `1107089.Patinho`,
-                                             `1107090.Lagarto redondo`,
-                                             `1107091.Lagarto comum`,
-                                             `1107093.Músculo`,
-                                             `1107094.Pá`,
-                                             `1107095.Acém`,
-                                             `1107096.Peito`,
-                                             `1107097.Capa de filé`,
-                                             `1107099.Costela`,
-                                             `1107208.Picanha`,
-                                             `1108075.Peixe - salmão`,
-                                             `1110009.Frango inteiro`,
-                                             `1110010.Frango em pedaços`)
-
-precos_C_IN <- Precos_subgrupos %>% select(mes_cod,
-                                           `1106001.Banana-da-terra`,
-                                           `1106003.Abacaxi`,
-                                           `1106004.Abacate`,
-                                           `1106005.Banana - d'água`,
-                                           `1106006.Banana - maçã`,
-                                           `1106008.Banana - prata`,
-                                           `1106011.Laranja - baía`,
-                                           `1106012.Laranja - lima`,
-                                           `1106015.Limão`,
-                                           `1106017.Maçã`,
-                                           `1106018.Mamão`,
-                                           `1106019.Manga`,
-                                           `1106020.Maracujá`,
-                                           `1106021.Melancia`,
-                                           `1106022.Melão`,
-                                           `1106023.Pera`,
-                                           `1106027.Tangerina`,
-                                           `1106028.Uva`,
-                                           `1106039.Laranja - pera`,
-                                           `1106051.Morango`,
-                                           `1106084.Goiaba`,
-                                           `1110044.Ovo de galinha`)
-
-precos_NC_IND <- Precos_subgrupos %>% select(mes_cod,
-                                             `1102010.Flocos de milho`,
-                                             `1102023.Farinha de mandioca`,
-                                             `1111008.Leite condensado`,
-                                             `1111011.Queijo`,
-                                             `1111012.Creme de leite`,
-                                             `1111019.Iogurte e bebidas lácteas`,
-                                             `1111021.Requeijão`,
-                                             `1111031.Manteiga`,
-                                             `1111038.Leite fermentado`,
-                                             `1112015.Pão francês`,
-                                             `1112017.Pão doce`,
-                                             `1112019.Bolo`)
-
-precos_NC_SEMI <- Precos_subgrupos %>% select(mes_cod,
-                                              `1101051.Feijão - mulatinho`,
-                                              `1101052.Feijão - preto`,
-                                              `1101053.Feijão - macáçar (fradinho)`,
-                                              `1101053.Feijão - macassar (fradinho)`,
-                                              `1101073.Feijão - carioca (rajado)`,
-                                              `1101075.Feijão - branco`,
-                                              `1108002.Peixe - anchova`,
-                                              `1108003.Peixe - badejo`,
-                                              `1108004.Peixe - corvina`,
-                                              `1108005.Peixe - cavalinha`,
-                                              `1108006.Peixe`,
-                                              `1108009.Peixe - pescadinha`,
-                                              `1108011.Peixe - tainha`,
-                                              `1108012.Peixe - sardinha`,
-                                              `1108013.Camarão`,
-                                              `1108015.Peixe - vermelho`,
-                                              `1108019.Peixe - cavala`,
-                                              `1108024.Peixe - pacu`,
-                                              `1108028.Peixe - dourado`,
-                                              `1108029.Peixe - cação`,
-                                              `1108031.Peixe - merluza`,
-                                              `1108032.Peixe - serra`,
-                                              `1108038.Peixe - pescada`,
-                                              `1108045.Caranguejo`,
-                                              `1108049.Peixe - castanha`,
-                                              `1108052.Peixe - palombeta`,
-                                              `1108054.Peixe - piau`,
-                                              `1108057.Peixe - surubim`,
-                                              `1108067.Sururu`,
-                                              `1108072.Peixe - curimatã`,
-                                              `1108080.Peixe - tilápia`,
-                                              `1108083.Peixe - tucunaré`,
-                                              `1108087.Peixe - tambaqui`,
-                                              `1108088.Peixe - dourada`,
-                                              `1108092.Peixe - filhote`,
-                                              `1108096.Peixe - peroá`,
-                                              `1108112.Peixe - pintado`,
-                                              `1108125.Peixe - aruanã`,
-                                              `1108170.Peixe - mandi`,
-                                              `1111004.Leite longa vida`)
-
-precos_NC_IN <- Precos_subgrupos %>% select(mes_cod,
-                                            `1103002.Batata-doce`,
-                                            `1103003.Batata-inglesa`,
-                                            `1103004.Inhame`,
-                                            `1103005.Mandioca (aipim)`,
-                                            `1103017.Abóbora`,
-                                            `1103020.Abobrinha`,
-                                            `1103025.Pepino`,
-                                            `1103026.Pimentão`,
-                                            `1103027.Quiabo`,
-                                            `1103028.Tomate`,
-                                            `1103043.Cebola`,
-                                            `1103044.Cenoura`,
-                                            `1103046.Mandioquinha (batata-baroa)`,
-                                            `1105001.Alface`,
-                                            `1105004.Coentro`,
-                                            `1105005.Couve`,
-                                            `1105006.Couve-flor`,
-                                            `1105010.Repolho`,
-                                            `1105012.Cheiro-verde`,
-                                            `1105013.Agrião`,
-                                            `1105019.Brócolis`)
-
-
-
-
-
-#### Peso separação cruzada ####
-
-Pesos_subgrupos <- IPCAalim_peso %>%select(-`11.Alimentação no domicílio`,
-                                           -`1101.Cereais, leguminosas e oleaginosas`,
-                                           -`1102.Farinhas, féculas e massas`,
-                                           -`1103.Tubérculos, raízes e legumes`,
-                                           -`1104.Açúcares e derivados`,
-                                           -`1105.Hortaliças e verduras`,
-                                           -`1106.Frutas`,
-                                           -`1107.Carnes`,
-                                           -`1108.Pescados`,
-                                           -`1109.Carnes e peixes industrializados`,
-                                           -`1110.Aves e ovos`,
-                                           -`1111.Leites e derivados`,
-                                           -`1112.Panificados`,
-                                           -`1113.Óleos e gorduras`,
-                                           -`1114.Bebidas e infusões`,
-                                           -`1115.Enlatados e conservas`,
-                                           -`1116.Sal e condimentos`)
-
-peso_C_IND <- Pesos_subgrupos %>% select(mes_cod,
-                                         `1102001.Farinha de arroz`,
-                                         `1102006.Macarrão`,
-                                         `1102008.Fubá de milho`,
-                                         `1102009.Amido de milho`,
-                                         `1102012.Farinha de trigo`,
-                                         `1102013.Farinha vitaminada`,
-                                         `1102029.Massa semipreparada`,
-                                         `1102061.Macarrão instantâneo`,
-                                         `1104003.Açúcar refinado`,
-                                         `1104004.Açúcar cristal`,
-                                         `1104018.Balas`,
-                                         `1104023.Chocolate em barra e bombom`,
-                                         `1104032.Sorvete`,
-                                         `1104052.Chocolate e achocolatado em pó`,
-                                         `1104060.Doce de frutas em pasta`,
-                                         `1104067.Açúcar demerara`,
-                                         `1109002.Presunto`,
-                                         `1109007.Salsicha`,
-                                         `1109008.Linguiça`,
-                                         `1109010.Mortadela`,
-                                         `1109012.Salame`,
-                                         `1109023.Bacalhau`,
-                                         `1109056.Carne-seca e de sol`,
-                                         `1109058.Carne de porco salgada e defumada`,
-                                         `1109088.Hambúrger`,
-                                         `1111009.Leite em pó`,
-                                         `1112003.Biscoito`,
-                                         `1112018.Pão de forma`,
-                                         `1112025.Pão de queijo`,
-                                         `1113013.Óleo de soja`,
-                                         `1113014.Azeite de oliva`,
-                                         `1113040.Margarina`,
-                                         `1114001.Suco de frutas`,
-                                         `1114003.Polpa de fruta (congelada)`,
-                                         `1114004.Açaí (emulsão)`,
-                                         `1114022.Café moído`,
-                                         `1114023.Café solúvel`,
-                                         `1114029.Chá`,
-                                         `1114083.Refrigerante e água mineral`,
-                                         `1114084.Cerveja`,
-                                         `1114085.Outras bebidas alcoólicas`,
-                                         `1114087.Vinho`,
-                                         `1114090.Suco em pó`,
-                                         `1114091.Chá mate (erva mate)`,
-                                         `1115004.Coco ralado`,
-                                         `1115006.Ervilha em conserva`,
-                                         `1115013.Alimento infantil`,
-                                         `1115016.Palmito em conserva`,
-                                         `1115017.Pepino em conserva`,
-                                         `1115039.Sardinha em conserva`,
-                                         `1115050.Salsicha em conserva`,
-                                         `1115051.Carne em conserva`,
-                                         `1115053.Patê`,
-                                         `1115056.Sopa desidratada`,
-                                         `1115057.Azeitona`,
-                                         `1115058.Milho-verde em conserva`,
-                                         `1115075.Atum em conserva`,
-                                         `1116001.Leite de coco`,
-                                         `1116005.Atomatado`,
-                                         `1116010.Alho`,
-                                         `1116013.Sal`,
-                                         `1116022.Colorau`,
-                                         `1116023.Caldo de tucupi`,
-                                         `1116026.Fermento`,
-                                         `1116033.Maionese`,
-                                         `1116041.Vinagre`,
-                                         `1116048.Caldo concentrado`,
-                                         `1116071.Tempero misto`)
-
-peso_C_SEMI <- Pesos_subgrupos %>% select(mes_cod,
-                                          `1101002.Arroz`,
-                                          `1101079.Milho (em grão)`,
-                                          `1107009.Fígado`,
-                                          `1107018.Carne de porco`,
-                                          `1107031.Carne de carneiro`,
-                                          `1107081.Cupim`,
-                                          `1107084.Contrafilé`,
-                                          `1107085.Filé-mignon`,
-                                          `1107087.Chã de dentro`,
-                                          `1107088.Alcatra`,
-                                          `1107089.Patinho`,
-                                          `1107090.Lagarto redondo`,
-                                          `1107091.Lagarto comum`,
-                                          `1107093.Músculo`,
-                                          `1107094.Pá`,
-                                          `1107095.Acém`,
-                                          `1107096.Peito`,
-                                          `1107097.Capa de filé`,
-                                          `1107099.Costela`,
-                                          `1107208.Picanha`,
-                                          `1108075.Peixe - salmão`,
-                                          `1110009.Frango inteiro`,
-                                          `1110010.Frango em pedaços`)
-
-peso_C_IN <- Pesos_subgrupos %>% select(mes_cod,
-                                        `1106001.Banana-da-terra`,
-                                        `1106003.Abacaxi`,
-                                        `1106004.Abacate`,
-                                        `1106005.Banana - d'água`,
-                                        `1106006.Banana - maçã`,
-                                        `1106008.Banana - prata`,
-                                        `1106011.Laranja - baía`,
-                                        `1106012.Laranja - lima`,
-                                        `1106015.Limão`,
-                                        `1106017.Maçã`,
-                                        `1106018.Mamão`,
-                                        `1106019.Manga`,
-                                        `1106020.Maracujá`,
-                                        `1106021.Melancia`,
-                                        `1106022.Melão`,
-                                        `1106023.Pera`,
-                                        `1106027.Tangerina`,
-                                        `1106028.Uva`,
-                                        `1106039.Laranja - pera`,
-                                        `1106051.Morango`,
-                                        `1106084.Goiaba`,
-                                        `1110044.Ovo de galinha`)
-
-peso_NC_IND <- Pesos_subgrupos %>% select(mes_cod,
-                                          `1102010.Flocos de milho`,
-                                          `1102023.Farinha de mandioca`,
-                                          `1111008.Leite condensado`,
-                                          `1111011.Queijo`,
-                                          `1111012.Creme de leite`,
-                                          `1111019.Iogurte e bebidas lácteas`,
-                                          `1111021.Requeijão`,
-                                          `1111031.Manteiga`,
-                                          `1111038.Leite fermentado`,
-                                          `1112015.Pão francês`,
-                                          `1112017.Pão doce`,
-                                          `1112019.Bolo`)
-
-peso_NC_SEMI <- Pesos_subgrupos %>% select(mes_cod,
-                                           `1101051.Feijão - mulatinho`,
-                                           `1101052.Feijão - preto`,
-                                           `1101053.Feijão - macáçar (fradinho)`,
-                                           `1101053.Feijão - macassar (fradinho)`,
-                                           `1101073.Feijão - carioca (rajado)`,
-                                           `1101075.Feijão - branco`,
-                                           `1108002.Peixe - anchova`,
-                                           `1108003.Peixe - badejo`,
-                                           `1108004.Peixe - corvina`,
-                                           `1108005.Peixe - cavalinha`,
-                                           `1108006.Peixe`,
-                                           `1108009.Peixe - pescadinha`,
-                                           `1108011.Peixe - tainha`,
-                                           `1108012.Peixe - sardinha`,
-                                           `1108013.Camarão`,
-                                           `1108015.Peixe - vermelho`,
-                                           `1108019.Peixe - cavala`,
-                                           `1108024.Peixe - pacu`,
-                                           `1108028.Peixe - dourado`,
-                                           `1108029.Peixe - cação`,
-                                           `1108031.Peixe - merluza`,
-                                           `1108032.Peixe - serra`,
-                                           `1108038.Peixe - pescada`,
-                                           `1108045.Caranguejo`,
-                                           `1108049.Peixe - castanha`,
-                                           `1108052.Peixe - palombeta`,
-                                           `1108054.Peixe - piau`,
-                                           `1108057.Peixe - surubim`,
-                                           `1108067.Sururu`,
-                                           `1108072.Peixe - curimatã`,
-                                           `1108080.Peixe - tilápia`,
-                                           `1108083.Peixe - tucunaré`,
-                                           `1108087.Peixe - tambaqui`,
-                                           `1108088.Peixe - dourada`,
-                                           `1108092.Peixe - filhote`,
-                                           `1108096.Peixe - peroá`,
-                                           `1108112.Peixe - pintado`,
-                                           `1108125.Peixe - aruanã`,
-                                           `1108170.Peixe - mandi`,
-                                           `1111004.Leite longa vida`)
-
-peso_NC_IN <- Pesos_subgrupos %>% select(mes_cod,
-                                         `1103002.Batata-doce`,
-                                         `1103003.Batata-inglesa`,
-                                         `1103004.Inhame`,
-                                         `1103005.Mandioca (aipim)`,
-                                         `1103017.Abóbora`,
-                                         `1103020.Abobrinha`,
-                                         `1103025.Pepino`,
-                                         `1103026.Pimentão`,
-                                         `1103027.Quiabo`,
-                                         `1103028.Tomate`,
-                                         `1103043.Cebola`,
-                                         `1103044.Cenoura`,
-                                         `1103046.Mandioquinha (batata-baroa)`,
-                                         `1105001.Alface`,
-                                         `1105004.Coentro`,
-                                         `1105005.Couve`,
-                                         `1105006.Couve-flor`,
-                                         `1105010.Repolho`,
-                                         `1105012.Cheiro-verde`,
-                                         `1105013.Agrião`,
-                                         `1105019.Brócolis`)
-
-
-#### Estrutura de ponderação ####
-
-# soma dos pesos por mês
-# C_IN
-
-denominador_C_IN <- peso_C_IN %>% 
-  select(- mes_cod)
-denominador_C_IN <- as.data.frame(t(denominador_C_IN), row.names = FALSE)
-denominador_C_IN <- as.data.frame(colSums(denominador_C_IN, na.rm = TRUE))
-
-# multiplicando data frame
-
-peso_C_IN <- peso_C_IN %>% 
-  select(-mes_cod)
-precos_C_IN <- precos_C_IN %>% 
-  select(-mes_cod)
-numerador_C_IN <- peso_C_IN * precos_C_IN
-numerador_C_IN <- as.data.frame(t(numerador_C_IN), row.names = FALSE)
-numerador_C_IN <- as.data.frame(colSums(numerador_C_IN, na.rm = TRUE))
-
-# Indice
-
-Indice_C_IN <- numerador_C_IN / denominador_C_IN
-remove(numerador_C_IN)
-remove(denominador_C_IN)
-
-
-# soma dos pesos por mês
-# C_IND
-
-denominador_C_IND <- peso_C_IND %>% 
-  select(- mes_cod)
-denominador_C_IND <- as.data.frame(t(denominador_C_IND), row.names = FALSE)
-denominador_C_IND <- as.data.frame(colSums(denominador_C_IND, na.rm = TRUE))
-
-# multiplicando data frame
-
-peso_C_IND <- peso_C_IND %>% 
-  select(-mes_cod)
-precos_C_IND <- precos_C_IND %>% 
-  select(-mes_cod)
-numerador_C_IND <- peso_C_IND * precos_C_IND
-numerador_C_IND <- as.data.frame(t(numerador_C_IND), row.names = FALSE)
-numerador_C_IND <- as.data.frame(colSums(numerador_C_IND, na.rm = TRUE))
-
-# Indice
-
-Indice_C_IND <- numerador_C_IND / denominador_C_IND
-remove(numerador_C_IND)
-remove(denominador_C_IND)
-
-# soma dos pesos por mês
-# C_SEMI
-
-denominador_C_SEMI <- peso_C_SEMI %>% 
-  select(- mes_cod)
-denominador_C_SEMI <- as.data.frame(t(denominador_C_SEMI), row.names = FALSE)
-denominador_C_SEMI <- as.data.frame(colSums(denominador_C_SEMI, na.rm = TRUE))
-
-# multiplicando data frame
-
-peso_C_SEMI <- peso_C_SEMI %>% 
-  select(-mes_cod)
-precos_C_SEMI <- precos_C_SEMI %>% 
-  select(-mes_cod)
-numerador_C_SEMI <- peso_C_SEMI * precos_C_SEMI
-numerador_C_SEMI <- as.data.frame(t(numerador_C_SEMI), row.names = FALSE)
-numerador_C_SEMI <- as.data.frame(colSums(numerador_C_SEMI, na.rm = TRUE))
-
-# Indice
-
-Indice_C_SEMI <- numerador_C_SEMI / denominador_C_SEMI
-remove(numerador_C_SEMI)
-remove(denominador_C_SEMI)
-
-
-# soma dos pesos por mês
-# NC_IN
-
-denominador_NC_IN <- peso_NC_IN %>% 
-  select(- mes_cod)
-denominador_NC_IN <- as.data.frame(t(denominador_NC_IN), row.names = FALSE)
-denominador_NC_IN <- as.data.frame(colSums(denominador_NC_IN, na.rm = TRUE))
-
-# multiplicando data frame
-
-peso_NC_IN <- peso_NC_IN %>% 
-  select(-mes_cod)
-precos_NC_IN <- precos_NC_IN %>% 
-  select(-mes_cod)
-numerador_NC_IN <- peso_NC_IN * precos_NC_IN
-numerador_NC_IN <- as.data.frame(t(numerador_NC_IN), row.names = FALSE)
-numerador_NC_IN <- as.data.frame(colSums(numerador_NC_IN, na.rm = TRUE))
-
-# Indice
-
-Indice_NC_IN <- numerador_NC_IN / denominador_NC_IN
-remove(numerador_NC_IN)
-remove(denominador_NC_IN)
-
-
-# soma dos pesos por mês
-# NC_IND
-
-denominador_NC_IND <- peso_NC_IND %>% 
-  select(- mes_cod)
-denominador_NC_IND <- as.data.frame(t(denominador_NC_IND), row.names = FALSE)
-denominador_NC_IND <- as.data.frame(colSums(denominador_NC_IND, na.rm = TRUE))
-
-# multiplicando data frame
-
-peso_NC_IND <- peso_NC_IND %>% 
-  select(-mes_cod)
-precos_NC_IND <- precos_NC_IND %>% 
-  select(-mes_cod)
-numerador_NC_IND <- peso_NC_IND * precos_NC_IND
-numerador_NC_IND <- as.data.frame(t(numerador_NC_IND), row.names = FALSE)
-numerador_NC_IND <- as.data.frame(colSums(numerador_NC_IND, na.rm = TRUE))
-
-# Indice
-
-Indice_NC_IND <- numerador_NC_IND / denominador_NC_IND
-remove(numerador_NC_IND)
-remove(denominador_NC_IND)
-
-# soma dos pesos por mês
-# C_SEMI
-
-denominador_NC_SEMI <- peso_NC_SEMI %>% 
-  select(- mes_cod)
-denominador_NC_SEMI <- as.data.frame(t(denominador_NC_SEMI), row.names = FALSE)
-denominador_NC_SEMI <- as.data.frame(colSums(denominador_NC_SEMI, na.rm = TRUE))
-
-# multiplicando data frame
-
-peso_NC_SEMI <- peso_NC_SEMI %>% 
-  select(-mes_cod)
-precos_NC_SEMI <- precos_NC_SEMI %>% 
-  select(-mes_cod)
-numerador_NC_SEMI <- peso_NC_SEMI * precos_NC_SEMI
-numerador_NC_SEMI <- as.data.frame(t(numerador_NC_SEMI), row.names = FALSE)
-numerador_NC_SEMI <- as.data.frame(colSums(numerador_NC_SEMI, na.rm = TRUE))
-
-# Indice
-
-Indice_NC_SEMI <- numerador_NC_SEMI / denominador_NC_SEMI
-remove(numerador_NC_SEMI)
-remove(denominador_NC_SEMI)
-
-
-#### criando base ####
-
-Base1 <- merge(IPCA, IPAB, "mes_cod")
-Base1 <-  merge(Base1, IPAD, "mes_cod")
-
-Base2 <- bind_cols(Indice_C_IN,
-                   Indice_C_SEMI,
-                   Indice_C_IND,
-                   Indice_NC_IN,
-                   Indice_NC_SEMI,
-                   Indice_NC_IND)
-
-Base <- bind_cols(Base1, Base2)
-
-colnames(Base) <- c("mes_cod", "IPCA", "IPAB", "IPAD", 
-                    "C_IN", "C_SEMI", "C_IND",
-                    "NC_IN", "NC_SEMI", "NC_IND")
-
-Base$C_IN <- round(Base$C_IN, 2)
-Base$C_SEMI <- round(Base$C_SEMI, 2)
-Base$C_IND <- round(Base$C_IND, 2)
-Base$NC_IN <- round(Base$NC_IN, 2)
-Base$NC_SEMI <- round(Base$NC_SEMI, 2)
-Base$NC_IND <- round(Base$NC_IND, 2)
-
-```
-
-
 
 ### FOB (petróleo)
 
@@ -1159,8 +481,8 @@ bd <- bind_cols(bd_IPAD,          # juntando variáveis
          "IBC",
          "Assistência social") %>% 
   mutate("Assistência social" = `Assistência social`/1000000) %>%  # transformar em milhões
-  mutate("Assistência social" = frollmean(`Assistência social`, 4) # media movel dos ultimos 4 meses
-  ) %>% 
+#  mutate("Assistência social" = frollmean(`Assistência social`, 4) # media movel dos ultimos 4 meses
+  # ) %>% 
   rename(Data = Ano_mes,
          "Assistência social (milhões de reais)" = "Assistência social")
 
@@ -1204,7 +526,7 @@ bd2 <- bd %>%
   filter(!is.na(`Assistência social (milhões de reais)`)) %>% 
   mutate_if(is.numeric, ~log( .x + 1 - min(.))) %>% # log com correcão para numeros negativos
   mutate_if(is.numeric, ~c(F, diff(.))) %>% # primeira diferença
-  filter(Data != "2012-04") %>%   
+  filter(Data != "2012-01") %>%   
  # filter(Data <= "2021-06") %>%    # só ate junho de 2021
   dplyr::select(- "Data") # retirar coluna de data
 
@@ -1233,9 +555,10 @@ head(bd2) %>%
 
 ## Análise descritiva
 
-```{r}
 
-ggplot(bd_IBC, aes(x = Ano_mes, y = IBC, group=1)) +
+Não rodar ainda
+
+ggplot(bd, aes(x = as_date(Data), y = IBC, group=1)) +
   geom_line(size= 0.3, color= "red")+
   labs(title = 'IBC',
        subtitle = "Variação mensal",
@@ -1243,8 +566,6 @@ ggplot(bd_IBC, aes(x = Ano_mes, y = IBC, group=1)) +
        y = "Variação",
        caption = 'Fonte: IPEA, elaboração própria')+ 
   mytheme
-
-```
 
 
 ## Modelo VAR
@@ -1297,7 +618,7 @@ print(adf.test(ts_assistencia)) # estacionária
 ```{r}
 lag <- VARselect(bd2, lag.max = 10)
 lag$selection
-        # Todos = 1 lag
+        # escolha = 1 lag
 
 ```
 
@@ -1328,17 +649,17 @@ granger1 <- causality(estim, cause = "Petróleo")
 
 granger1$Granger  # petroleo causa
 
-granger2 <- causality(estim, cause = "IPAD")           # IPAD não causa
+granger2 <- causality(estim, cause = "IPAD")   # IPAD não causa
 
 granger2$Granger
 
-granger3 <- causality(estim, cause = "Preço.internacional.dos.alimentos")  # não causa 
+granger3 <- causality(estim, cause = "Preço.internacional.dos.alimentos")  # preço internacional não causa 
 
 granger3$Granger
 
-granger4 <- causality(estim, cause = "Assistência.social..milhões.de.reais.")  # não causa 
+granger4 <- causality(estim, cause = "Assistência.social..milhões.de.reais.")  # Assistência não causa 
 
-granger4$Granger    # nao causa
+granger4$Granger
 
 
 ```
@@ -1352,8 +673,8 @@ irf <- irf(estim,
             repsonse = "IPAD",
             n.ahead = 10,
             boot = TRUE,
-            runs = 100,
-            ci = 0.95,
+            runs = 300,
+            ci = 0.90,
             cumulative = F)
 
 # win.graph(width=15,height=8)
