@@ -1,0 +1,977 @@
+---
+title: "VAR inflação de alimentos"
+subtitle: "análise descritiva e econométrica"
+author: 
+  - "Izabel Flores^[UnB]"
+date: "`r format(Sys.Date(),'%d/%m/%Y')`"
+output:
+  bookdown::html_document2:
+    df_print: paged
+    fig_caption: true
+    number_sections: no
+    theme: cerulean
+    toc: no
+    toc_float:
+      collapsed: yes
+      smooth_scroll: yes
+  bookdown::pdf_document2:  
+    citation_package: natbib
+    fig_caption: true
+    number_sections: true
+    toc_depth: 4
+    latex_engine: xelatex
+  bookdown::word_document2: default
+fontsize: 12pt
+linkcolor: blue
+header-includes:
+  - \usepackage{indentfirst}
+  - \usepackage{amsmath}
+  - \usepackage{float}
+  - \setlength{\parindent}{4em}
+  - \setlength{\parskip}{1.5em}
+  - \usepackage{titling}
+  - \pretitle{\begin{center}
+  - \posttitle{\end{center}}
+biblio-style: "apalike"
+link-citations: true
+editor_options: 
+  chunk_output_type: console
+---
+
+# {#inic .tabset}
+
+## Pacotes
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  message = FALSE,
+  warning = FALSE,
+  echo    = FALSE,                 # Mostra os códigos automaticamente
+  eval    = TRUE,                  # se quiser rodar o código R - colocar TRUE
+  fig.cap = 'Elaboração própria.', # Legenda automática de figuras
+  fig.pos = 'H'
+)
+```
+
+
+
+```{r, results='hide'}
+carrega_pacotes <- function(){
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(sidrar,         ## Importar dados IBGE 
+               tidyverse,      ## Pacote de utilidades para manipulação e visualização
+               kableExtra,     ## Elaboração das tabelas em LaTeX e html
+               lubridate,      ## padronização de datas
+               data.table,     ## Facilitar manipulação de tabelas
+               plotly,         ## Graficos
+               colorBlindness, ## Cores mais apropriadas a daltônicos
+               # tibbles,      ## data frames
+               readxl,         ## importar tabelas excel
+               GetBCBData,     ## dados BCB
+               htmltools,     ## ajuste página html
+               cowplot,         ## grafico padronizar
+               stargazer
+)
+
+options(scipen = 99)           # Ajuste de casas decimais
+
+}
+carrega_pacotes()
+
+library(vars)
+library(tseries)
+library(ggplot2)
+library(forecast)
+
+```
+
+## Montando bases
+
+```{r}
+bd <- read.csv("bd.csv") # base variaveis
+bd_desagregados <- read.csv("indices_desagregados.csv") # base indices desagregados
+bd_desagregados_12 <- read.csv("indices_desagregados_acumulado_12_meses.csv") # base indices desagregados 12 meses
+
+bd_desagregados <- bd_desagregados[1:126, ]
+```
+
+log e diff normal
+
+```{r}
+bd <- bd[, 2:8]
+
+colnames(bd) <- c("Data", "Indice", "Petróleo", "Internacional", "Câmbio", "IBC", "Assistência")
+
+bd <- bd %>% 
+  mutate(Indice = bd_desagregados$IPAD)
+
+bd2 <- bd %>% 
+  filter(!is.na(`Assistência`)) %>% 
+  mutate_if(is.numeric, ~log( .x + 1 - min(.))) %>% # log com correcão para numeros negativos
+  mutate_if(is.numeric, ~c(F, diff(.))) %>% # primeira diferença
+  filter(Data != "2012-01") %>%   
+ # filter(Data <= "2021-06") %>%    # só ate junho de 2021
+  dplyr::select(- "Data") # retirar coluna de data
+
+```
+
+Acumulado 12 meses das variáveis de inflação (log e diff)
+
+```{r}
+bd2_desagregados <- bd_desagregados[13:126, 2:11 ]
+bd2_desagregados <- bd2_desagregados %>% 
+  mutate_if(is.numeric, ~log( .x + 1 - min(.))) %>% # log com correcão para numeros negativos
+  mutate_if(is.numeric, ~c(F, diff(.))) %>% # primeira diferença
+  filter(mes_cod != "2013-01-01",
+         mes_cod != "2022-09-01",
+         mes_cod != "2022-08-01",
+         mes_cod != "2022-07-01") %>%   
+ # filter(Data <= "2021-06") %>%    # só ate junho de 2021
+  dplyr::select(- "mes_cod") # retirar coluna de data
+
+
+bd2 <- bd2[13:125, ]
+
+
+```
+
+
+### Graficos
+
+```{r}
+
+ts_petroleo <- ts(bd2$Petróleo, start = c(2013, 02), frequency = 12)
+
+ts_preco <- ts(bd2$Internacional, start = c(2013, 02), frequency = 12)
+
+ts_cambio <- ts(bd2$Câmbio, start = c(2013, 02), frequency = 12)
+
+ts_IBC <- ts(bd2$`IBC`, start = c(2013, 02), frequency = 12)
+
+ts_assistencia <- ts(bd2$Assistência, start = c(2013, 02), frequency = 12)
+
+forecast::autoplot(ts_petroleo)
+forecast::autoplot(ts_preco)
+forecast::autoplot(ts_cambio)
+forecast::autoplot(ts_IBC)
+forecast::autoplot(ts_assistencia)
+
+
+```
+
+### Teste de estacionariedade
+
+```{r}
+# Teste ADF
+
+    # reheitar hipotese nula = serie estacionária :)
+
+print(adf.test(ts_preco)) # estacionaria
+print(adf.test(ts_cambio)) # estacionaria
+print(adf.test(ts_petroleo)) # estacionaria
+print(adf.test(ts_IBC)) # estacionaria
+print(adf.test(ts_assistencia)) # estacionária
+
+```
+
+## IPCA 
+
+```{r}
+
+bd_IPCA <- bd2 %>% 
+  mutate(Indice = bd2_desagregados$IPCA) %>% 
+  rename(IPCA = Indice)
+
+ts_IPCA <- ts(bd_IPCA$IPCA, start = c(2013, 02), frequency = 12)
+
+forecast::autoplot(ts_IPCA)
+
+```
+
+Teste ADF
+
+```{r}
+print(adf.test(ts_IPCA)) # estacionaria
+```
+
+
+Escolhendo lags
+
+2 lags segundo o teste AIC e FPE
+
+```{r}
+lag <- VARselect(bd_IPCA, lag.max = 5)
+lag$selection
+        # escolha = 2 lag segundo 
+```
+
+
+
+### Estimando
+
+```{r}
+estim <- VAR(bd_IPCA, p = 2, type = "none")
+
+stargazer(estim[["varresult"]], type = "text")
+```
+
+### Teste de estabilidade
+
+```{r}
+
+roots(estim, modulus = TRUE)  # precisa ser menor que 1 pra ser estável :)
+```
+
+
+### Causalidade de Granger
+
+```{r}
+
+granger1 <- causality(estim, cause = "Petróleo")
+
+granger1$Granger  # petroleo causa granger
+
+granger2 <- causality(estim, cause = "IPCA")   
+
+granger2$Granger  # IPCA não causa granger
+
+granger3 <- causality(estim, cause = "Internacional")  # preço internacional causa granger a 5% de significância 
+
+granger3$Granger
+
+granger4 <- causality(estim, cause = "Assistência")  # Assistência não causa 
+
+granger4$Granger
+
+granger5 <- causality(estim, cause = "Câmbio")  # Câmbio não causa 
+
+granger5$Granger
+
+granger6 <- causality(estim, cause = "IBC")
+
+granger6$Granger  # IBC  causa granger
+
+
+```
+
+### Impulso resposta
+
+```{r}
+
+
+irf <- irf(estim,
+            repsonse = "IPCA",
+            n.ahead = 10,
+            boot = TRUE,
+            runs = 300,
+            ci = 0.90,
+            cumulative = F)
+
+# win.graph(width=15,height=8)
+plot(irf)
+
+```
+
+## IPAD 
+
+```{r}
+
+bd_IPAD <- bd2 %>% 
+  mutate(Indice = bd2_desagregados$IPAD) %>% 
+  rename(IPAD = Indice)
+
+ts_IPAD <- ts(bd_IPAD$IPAD, start = c(2013, 02), frequency = 12)
+
+forecast::autoplot(ts_IPAD)
+
+```
+
+Teste ADF
+
+```{r}
+print(adf.test(ts_IPAD)) # estacionaria
+```
+
+
+Escolhendo lags
+
+1 lag segundo todos os testes (AIC, HQ, SC, FPE)
+
+```{r}
+lag <- VARselect(bd_IPAD, lag.max = 5)
+lag$selection
+        # escolha = 1 lag
+```
+
+
+
+### Estimando
+
+```{r}
+estim <- VAR(bd_IPAD, p = 1, type = "none")
+
+stargazer(estim[["varresult"]], type = "text")
+```
+
+### Teste de estabilidade
+
+estável. todos menorres que 1.
+```{r}
+
+roots(estim, modulus = TRUE)  # precisa ser menor que 1 pra ser estável :)
+```
+
+
+### Causalidade de Granger
+
+```{r}
+
+granger1 <- causality(estim, cause = "Petróleo")
+
+granger1$Granger  # petroleo causa
+
+granger2 <- causality(estim, cause = "IPAD")   
+
+granger2$Granger # IPAD não causa
+
+granger3 <- causality(estim, cause = "Internacional")  # preço internacional causa 
+
+granger3$Granger # preço internacional causa a 10% de significância
+
+granger4 <- causality(estim, cause = "Assistência")   
+
+granger4$Granger # Assistência não causa
+
+granger5 <- causality(estim, cause = "Câmbio")  
+
+granger5$Granger # Câmbio não causa 
+
+granger6 <- causality(estim, cause = "IBC") 
+
+granger6$Granger  # IBC causa a 1%
+
+```
+
+### Impulso resposta
+
+```{r}
+
+
+irf <- irf(estim,
+            repsonse = "IPAD",
+            n.ahead = 10,
+            boot = TRUE,
+            runs = 300,
+            ci = 0.90,
+            cumulative = F)
+
+# win.graph(width=15,height=8)
+plot(irf)
+
+```
+
+## Comercializáveis {.tabset}
+
+### In natura
+
+```{r}
+
+bd_C_IN <- bd2 %>% 
+  mutate(Indice = bd2_desagregados$C_IN) %>% 
+  rename(C_IN = Indice)
+
+ts_C_IN <- ts(bd_C_IN$C_IN, start = c(2013, 02), frequency = 12)
+
+forecast::autoplot(ts_C_IN)
+
+```
+
+Teste ADF
+
+```{r}
+print(adf.test(ts_C_IN)) # estacionaria
+```
+
+
+Escolhendo lags
+
+```{r}
+lag <- VARselect(bd_C_IN, lag.max = 5)
+lag$selection
+        # escolha = 1 lag
+```
+
+
+
+#### Estimando
+
+```{r}
+estim <- VAR(bd_C_IN, p = 1, type = "none")
+
+stargazer(estim[["varresult"]], type = "text")
+```
+
+#### Teste de estabilidade
+
+É estável
+```{r}
+
+roots(estim, modulus = TRUE)  # precisa ser menor que 1 pra ser estável :)
+```
+
+
+#### Causalidade de Granger
+
+```{r}
+
+granger1 <- causality(estim, cause = "Petróleo")
+
+granger1$Granger  # petroleo causa
+
+granger2 <- causality(estim, cause = "C_IN")   
+
+granger2$Granger  # C_IN não causa
+
+granger3 <- causality(estim, cause = "Internacional") 
+
+granger3$Granger # preço internacional não causa 
+
+granger4 <- causality(estim, cause = "Assistência") 
+
+granger4$Granger # Assistência não causa
+
+granger5 <- causality(estim, cause = "Câmbio")
+
+granger5$Granger # Câmbio não causa
+
+granger6 <- causality(estim, cause = "IBC")  # IBC não causa 
+
+granger6$Granger # IBC causa
+
+
+```
+
+#### Impulso resposta
+
+```{r}
+
+
+irf <- irf(estim,
+            repsonse = "C_IN",
+            n.ahead = 10,
+            boot = TRUE,
+            runs = 300,
+            ci = 0.90,
+            cumulative = F)
+
+# win.graph(width=15,height=8)
+plot(irf)
+
+```
+
+### Semi industrializados
+
+```{r}
+
+bd_C_SEMI <- bd2 %>% 
+  mutate(Indice = bd2_desagregados$C_SEMI) %>% 
+  rename(C_SEMI = Indice)
+
+ts_C_SEMI <- ts(bd_C_SEMI$C_SEMI, start = c(2013, 02), frequency = 12)
+
+forecast::autoplot(ts_C_SEMI)
+
+```
+
+Teste ADF
+
+```{r}
+print(adf.test(ts_C_SEMI)) # estacionaria
+```
+
+
+Escolhendo lags
+
+AIC e FPE 2 lags
+
+```{r}
+lag <- VARselect(bd_C_SEMI, lag.max = 5)
+lag$selection
+        # escolha = 2 lag
+```
+
+
+
+#### Estimando
+
+```{r}
+estim <- VAR(bd_C_SEMI, p = 2, type = "none")
+
+stargazer(estim[["varresult"]], type = "text")
+```
+
+#### Teste de estabilidade
+
+É estável.
+
+```{r}
+
+roots(estim, modulus = TRUE)  # precisa ser menor que 1 pra ser estável :)
+```
+
+
+#### Causalidade de Granger
+
+```{r}
+
+granger1 <- causality(estim, cause = "Petróleo")
+
+granger1$Granger  # petroleo causa
+
+granger2 <- causality(estim, cause = "C_SEMI")
+
+granger2$Granger  # C_SEMI causa a 5%
+
+granger3 <- causality(estim, cause = "Internacional") 
+
+granger3$Granger # preço internacional causa a 10%
+
+granger4 <- causality(estim, cause = "Assistência") 
+
+granger4$Granger   # Assistência não causa
+
+granger5 <- causality(estim, cause = "Câmbio")  
+
+granger5$Granger # Câmbio não causa
+
+
+granger6 <- causality(estim, cause = "IBC")  # IBC não causa 
+
+granger6$Granger # IBC causa
+
+
+```
+
+#### Impulso resposta
+
+```{r}
+
+
+irf <- irf(estim,
+            repsonse = "C_SEMI",
+            n.ahead = 10,
+            boot = TRUE,
+            runs = 300,
+            ci = 0.90,
+            cumulative = F)
+
+# win.graph(width=15,height=8)
+plot(irf)
+
+```
+
+### Industrializados
+
+```{r}
+
+bd_C_IND <- bd2 %>% 
+  mutate(Indice = bd2_desagregados$C_IND) %>% 
+  rename(C_IND = Indice)
+
+ts_C_IND <- ts(bd_C_IND$C_IND, start = c(2013, 02), frequency = 12)
+
+forecast::autoplot(ts_C_IND)
+
+```
+
+Teste ADF
+
+```{r}
+print(adf.test(ts_C_IND)) # estacionaria
+```
+
+
+Escolhendo lags
+
+AIC e FPE 2 lags. HQ e SC 1 lag. Escolhemos 2 lags.
+
+```{r}
+lag <- VARselect(bd_C_IND, lag.max = 5)
+lag$selection
+        # escolha = 2 lag
+```
+
+
+
+#### Estimando
+
+```{r}
+estim <- VAR(bd_C_IND, p = 2, type = "none")
+
+library(stargazer)
+
+stargazer(estim[["varresult"]], type = "text")
+```
+
+#### Teste de estabilidade
+
+É estável.
+
+```{r}
+
+roots(estim, modulus = TRUE)  # precisa ser menor que 1 pra ser estável :)
+```
+
+
+#### Causalidade de Granger
+
+```{r}
+
+granger1 <- causality(estim, cause = "Petróleo")
+
+granger1$Granger  # petroleo causa
+
+granger2 <- causality(estim, cause = "C_IND")   
+
+granger2$Granger  # C_IND não causa a 10%
+
+granger3 <- causality(estim, cause = "Internacional") 
+
+granger3$Granger # preço internacional causa a 5%
+
+granger4 <- causality(estim, cause = "Assistência") 
+
+granger4$Granger  # Assistência não causa 
+
+granger5 <- causality(estim, cause = "Câmbio") 
+
+granger5$Granger  # Câmbio não causa 
+
+granger6 <- causality(estim, cause = "IBC")  
+
+granger6$Granger # IBC causa
+
+```
+
+#### Impulso resposta
+
+```{r}
+
+
+irf <- irf(estim,
+            repsonse = "C_IND",
+            n.ahead = 10,
+            boot = TRUE,
+            runs = 300,
+            ci = 0.90,
+            cumulative = F)
+
+# win.graph(width=15,height=8)
+plot(irf)
+
+```
+
+## Não Comercializáveis {.tabset}
+
+### In natura
+
+```{r}
+
+bd_NC_IN <- bd2 %>% 
+  mutate(Indice = bd2_desagregados$NC_IN) %>% 
+  rename(NC_IN = Indice)
+
+ts_NC_IN <- ts(bd_NC_IN$NC_IN, start = c(2013, 02), frequency = 12)
+
+forecast::autoplot(ts_NC_IN)
+
+```
+
+Teste ADF
+
+```{r}
+print(adf.test(ts_NC_IN)) # estacionaria
+```
+
+
+Escolhendo lags
+
+```{r}
+lag <- VARselect(bd_NC_IN, lag.max = 5)
+lag$selection
+        # escolha = 1 lag
+```
+
+
+
+#### Estimando
+
+```{r}
+estim <- VAR(bd_NC_IN, p = 1, type = "none")
+
+library(stargazer)
+
+stargazer(estim[["varresult"]], type = "text")
+```
+
+#### Teste de estabilidade
+
+É estável.
+
+```{r}
+
+roots(estim, modulus = TRUE)  # precisa ser menor que 1 pra ser estável :)
+```
+
+
+#### Causalidade de Granger
+
+```{r}
+
+granger1 <- causality(estim, cause = "Petróleo")
+
+granger1$Granger  # petroleo causa
+
+granger2 <- causality(estim, cause = "NC_IN")   
+
+granger2$Granger # NC_IN não causa
+
+granger3 <- causality(estim, cause = "Internacional")
+
+granger3$Granger # preço internacional não causa 
+
+granger4 <- causality(estim, cause = "Assistência") 
+
+granger4$Granger  # Assistência não causa 
+
+granger5 <- causality(estim, cause = "Câmbio")  
+
+granger5$Granger  # câmbio não causa 
+
+granger6 <- causality(estim, cause = "IBC")  # IBC não causa 
+
+granger6$Granger # IBC causa 
+
+
+```
+
+#### Impulso resposta
+
+```{r}
+
+
+irf <- irf(estim,
+            repsonse = "NC_IN",
+            n.ahead = 10,
+            boot = TRUE,
+            runs = 300,
+            ci = 0.90,
+            cumulative = F)
+
+# win.graph(width=15,height=8)
+plot(irf)
+
+```
+
+### Semi industrializado
+
+```{r}
+
+bd_NC_SEMI <- bd2 %>% 
+  mutate(Indice = bd2_desagregados$NC_SEMI) %>% 
+  rename(NC_SEMI = Indice)
+
+ts_NC_SEMI <- ts(bd_NC_SEMI$NC_SEMI, start = c(2013, 02), frequency = 12)
+
+forecast::autoplot(ts_NC_SEMI)
+
+```
+
+Teste ADF
+
+```{r}
+print(adf.test(ts_NC_SEMI)) # estacionaria
+```
+
+
+Escolhendo lags
+
+AIC e FPE 2 lags. HQ e SC 1 lag. escolhemos 2 lags.
+
+```{r}
+lag <- VARselect(bd_NC_SEMI, lag.max = 5)
+lag$selection
+        # escolha = 2 lag
+```
+
+
+
+#### Estimando
+
+```{r}
+estim <- VAR(bd_NC_SEMI, p = 2, type = "none")
+
+library(stargazer)
+
+stargazer(estim[["varresult"]], type = "text")
+```
+
+#### Teste de estabilidade
+
+É estável
+
+```{r}
+
+roots(estim, modulus = TRUE)  # precisa ser menor que 1 pra ser estável :)
+```
+
+
+#### Causalidade de Granger
+
+```{r}
+
+granger1 <- causality(estim, cause = "Petróleo")
+
+granger1$Granger  # petroleo causa
+
+granger2 <- causality(estim, cause = "NC_SEMI")   
+
+granger2$Granger # NC_SEMI não causa
+
+granger3 <- causality(estim, cause = "Internacional") 
+
+granger3$Granger # preço internacional causa a 10%
+
+granger4 <- causality(estim, cause = "Assistência") 
+
+granger4$Granger  # Assistência não causa 
+
+granger5 <- causality(estim, cause = "Câmbio")
+
+granger5$Granger # câmbio não causa
+
+granger6 <- causality(estim, cause = "IBC")  
+
+granger6$Granger # IBC causa
+
+```
+
+#### Impulso resposta
+
+```{r}
+
+
+irf <- irf(estim,
+            repsonse = "NC_SEMI",
+            n.ahead = 10,
+            boot = TRUE,
+            runs = 300,
+            ci = 0.90,
+            cumulative = F)
+
+# win.graph(width=15,height=8)
+plot(irf)
+
+```
+
+### Industrializado
+
+```{r}
+
+bd_NC_IND <- bd2 %>% 
+  mutate(Indice = bd2_desagregados$NC_IND) %>% 
+  rename(NC_IND = Indice)
+
+ts_NC_IND <- ts(bd_NC_IND$NC_IND, start = c(2013, 02), frequency = 12)
+
+forecast::autoplot(ts_NC_IND)
+
+```
+
+Teste ADF
+
+```{r}
+print(adf.test(ts_NC_IND)) # estacionaria
+```
+
+
+Escolhendo lags
+
+
+```{r}
+lag <- VARselect(bd_NC_IND, lag.max = 5)
+lag$selection
+        # escolha = 1 lag
+```
+
+
+
+#### Estimando
+
+```{r}
+estim <- VAR(bd_NC_IND, p = 1, type = "none")
+
+stargazer(estim[["varresult"]], type = "text")
+```
+
+#### Teste de estabilidade
+
+É estável
+
+```{r}
+
+roots(estim, modulus = TRUE)  # precisa ser menor que 1 pra ser estável :)
+```
+
+
+#### Causalidade de Granger
+
+```{r}
+
+granger1 <- causality(estim, cause = "Petróleo")
+
+granger1$Granger  # petroleo causa
+
+granger2 <- causality(estim, cause = "NC_IND")   
+
+granger2$Granger  # NC_IND não causa
+
+granger3 <- causality(estim, cause = "Internacional")  
+
+granger3$Granger  # preço internacional não causa 
+
+
+granger4 <- causality(estim, cause = "Assistência")
+
+granger4$Granger  # Assistência não causa 
+
+granger5 <- causality(estim, cause = "Câmbio")  
+
+granger5$Granger  # Assistência não causa 
+
+granger6 <- causality(estim, cause = "IBC")  # IBC não causa 
+
+granger6$Granger  # IBC causa
+
+
+```
+
+#### Impulso resposta
+
+```{r}
+
+
+irf <- irf(estim,
+            repsonse = "NC_IND",
+            n.ahead = 10,
+            boot = TRUE,
+            runs = 300,
+            ci = 0.90,
+            cumulative = F)
+
+# win.graph(width=15,height=8)
+plot(irf)
+
+```
+
+
